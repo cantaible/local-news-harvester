@@ -25,7 +25,7 @@ export default {
   methods: {
     sourceChanged: function(evt) {
       for (var i = 0; i < this.sources.length; i++) {
-        if (this.sources[i].id === evt.target.value) {
+        if (String(this.sources[i].id) === evt.target.value) {
           this.source = this.sources[i];
         }
       }
@@ -33,9 +33,14 @@ export default {
     }
   },
   created: function() {
-    this.$http.get('https://newsapi.org/v2/sources?apiKey=490cb422b79149ae85bdf2b85d62a848')
+    const baseUrl = process.env.API_BASE_URL
+    this.$http.get(`${baseUrl}/api/feeditems`)
       .then(response => {
-        this.sources = response.body.sources;
+        if (response.body && response.body.data) {
+          this.sources = response.body.data;
+        } else {
+          this.sources = response.body;
+        }
       });
   }
 }

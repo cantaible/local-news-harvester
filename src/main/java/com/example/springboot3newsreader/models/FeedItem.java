@@ -1,7 +1,6 @@
 package com.example.springboot3newsreader.models;
 
 import java.time.LocalDateTime;
-
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
@@ -20,6 +19,9 @@ public class FeedItem {
   Long id;
 
   String name;
+
+  String sourceType;
+  Boolean enabled;
 
   String url;
 

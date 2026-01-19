@@ -15,7 +15,7 @@
           <Newslist v-bind:source="source"></Newslist>
         </div>
         <div id="i1" class="tab-pane">
-          <Favouriteslist></Favouriteslist>
+          <FeedSourceForm></FeedSourceForm>
         </div>
       </div>
     </div>
@@ -25,8 +25,7 @@
 <script>
 import SourceSelection from './SourceSelection'
 import Newslist from './Newslist'
-import Favouriteslist from './Favouriteslist'
-import { db } from '../db'
+import FeedSourceForm from './FeedSourceForm'
 
 export default {
   name: 'hello',
@@ -38,7 +37,7 @@ export default {
   components: {
     Newslist,
     SourceSelection,
-    Favouriteslist
+    FeedSourceForm
   },
   methods: {
     sourceChanged: function(source) {

@@ -4,7 +4,7 @@
 
 ### 1. 构建 Vue 前端（在 frontend/ 下）
 ```bash
-cd frontend
+cd /Users/bytedance/Documents/Codes/local-news-harvester/frontend
 npm install --legacy-peer-deps --ignore-scripts
 npm run build
 ```
@@ -16,7 +16,7 @@ npm run build
 
 ### 2. 启动 Spring Boot 后端（根目录）
 ```bash
-cd ..
+cd /Users/bytedance/Documents/Codes/local-news-harvester
 SPRING_DOCKER_COMPOSE_ENABLED=false ./mvnw -DskipTests spring-boot:run
 ```
 
@@ -26,10 +26,17 @@ SPRING_DOCKER_COMPOSE_ENABLED=false ./mvnw -DskipTests spring-boot:run
 
 ### 3. 启动 Vue 前端（另开终端）
 ```bash
-cd frontend
+cd /Users/bytedance/Documents/Codes/local-news-harvester/frontend
 npm run dev
 ```
 
 说明：
 - 已将前端开发端口固定为 `8082`（见 `frontend/package.json`）。
 - 前端地址：`http://localhost:8082`
+
+### 清空数据库
+```bash
+cd /Users/bytedance/Documents/Codes/local-news-harvester
+docker compose down -v
+docker compose up -d
+```
