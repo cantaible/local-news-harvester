@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.springboot3newsreader.models.FeedItem;
 import com.example.springboot3newsreader.services.FeedItemService;
+import com.example.springboot3newsreader.services.RssIngestService;
 import com.example.springboot3newsreader.ApiResponse;
 
 @RestController
@@ -15,6 +16,9 @@ public class FormController {
 
   @Autowired
   private FeedItemService feedItemService;
+  @Autowired
+  private RssIngestService rssIngestService;
+
 
   @PostMapping("/feeds/new")
   public ResponseEntity<?> createFeedItem(FeedItem feedItem) {
@@ -44,6 +48,16 @@ public class FormController {
     }
 
     FeedItem saved = feedItemService.save(feedItem);
+
+    if ("RSS".equals(feedItem.getSourceType())) {
+      try {
+        rssIngestService.ingest(feedItem.getUrl());
+      } catch (Exception e) {
+        // 你说不做错误隔离，但这里至少不要让接口挂掉
+        // 可以选择直接抛出运行时异常
+        throw new RuntimeException(e);
+      }
+    }
     return ResponseEntity.status(HttpStatus.CREATED)
     .body(new ApiResponse<>(200, "ok", saved));
   }

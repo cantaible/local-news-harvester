@@ -1,69 +1,74 @@
 <template>
   <div class="newslist">
     <div class="container">
-      <ul class="media-list">
-        <li class="media" v-for="article in articles">
-          <div class="media-left">
-            <a v-bind:href="article.url" target="_blank">
-              <img class="media-object" v-bind:src="article.urlToImage">
-            </a>
-          </div>
-          <div class="media-body">
-            <h4 class="media-heading">
-              <a v-bind:href="article.url" target="_blank">{{ article.title }}</a>
-            </h4>
-            <h5>
-              <i>By {{ article.author }}</i>
-            </h5>
-            <p>{{ article.description }}</p>
-          </div>
-          <div class="media-right">
-            <span class="glyphicon glyphicon-heart" v-on:click="addFavourite(article, $event)"></span>
-          </div>
-        </li>
-      </ul>
+
+      <vue-waterfall-easy
+      ref="waterfall"
+      v-bind:imgsArr="imgsArr"
+      v-on:scrollReachBottom="getData"
+      v-on:click="clickFn"
+      v-on:imgError="imgErrorFn"
+    >
+      <div class="img-info" slot-scope="props">
+        <p class="some-info">{{ props.value.title }}</p>
+        <p class="some-info">{{ props.value.info }}</p>
+      </div>
+    </vue-waterfall-easy>
     </div>
   </div>
 </template>
 
 <script>
-import { db } from '../db'
-
+import vueWaterfallEasy from 'vue-waterfall-easy'
+// https://github.com/lfyfly/vue-waterfall-easy/blob/master/README-CN.md
 export default {
   name: 'newslist',
   props: ['source'],
+  components: {
+    vueWaterfallEasy
+  },
   data() {
     return {
-      articles: []
+      imgsArr: []
     }
   },
   methods: {
-    updateSource: function(source) {
-      if (source) {
-        this.$http.get('https://newsapi.org/v2/top-headlines?sources=' + source + '&apiKey=490cb422b79149ae85bdf2b85d62a848')
-          .then(response => {
-            this.articles = response.body.articles;
-          });
+    getData() {
+      const baseUrl = process.env.API_BASE_URL
+      this.$http.get(`${baseUrl}/api/newsarticles`).then(response => {
+        const list = response.body && response.body.data ? response.body.data : response.body
+        this.imgsArr = list.map(a => ({
+          src: a.tumbnailURL,
+          href: a.sourceURL,
+          title: a.title,
+          info: a.summary
+        }))
+        console.log(this.imgsArr)
+      })
+    },
+    clickFn(event, {index, value}){
+      if (event.target.tagName.toLowerCase() == 'img' && value.href) {
+        window.open(value.href, '_blank')
       }
     },
-    addFavourite: function(article, evt) {
-      db.ref('articles').push(article)
-      evt.target.style.visibility = 'hidden';//hide heart icon
-    },
+    imgErrorFn(imgItem) {
+      console.log('image load error', imgItem)
+    }
   },
   created: function() {
-    this.updateSource(this.source);
+    this.getData();
   },
-  watch: {
-    source: function(val) {
-      this.updateSource(val);
-    }
-  }
 }
 
 </script>
 
 <!-- Add "scoped" attribute to limit CSS to this component only -->
 <style scoped>
+.newslist {
+  height: 70vh;
+}
 
+.newslist .container {
+  height: 100%;
+}
 </style>

@@ -6,7 +6,7 @@
           <a data-toggle="tab" href="#i0">News Feed</a>
         </li>
         <li>
-          <a data-toggle="tab" href="#i1">Favourites</a>
+          <a data-toggle="tab" href="#i1">News Source</a>
         </li>
       </ul>
       <div class="tab-content">

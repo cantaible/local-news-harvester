@@ -6,6 +6,7 @@ import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.example.springboot3newsreader.models.FeedItem;
 import com.example.springboot3newsreader.repositories.FeedItemRepository;
@@ -31,5 +32,20 @@ public class FeedItemService {
 
     feedItem.setUpdatedAt(LocalDateTime.now());
     return feedItemRepository.save(feedItem);
+  }
+
+  public List<FeedItem> saveAll(List<FeedItem> feedItems) {
+    for (FeedItem feedItem : feedItems) {
+      if (feedItem.getId() == null) {
+        feedItem.setCreatedAt(LocalDateTime.now());
+      }
+      feedItem.setUpdatedAt(LocalDateTime.now());
+    }
+    return feedItemRepository.saveAll(feedItems);
+  }
+
+  @Transactional
+  public void deleteByNamePrefix(String prefix) {
+    feedItemRepository.deleteByNameStartingWith(prefix);
   }
 }
