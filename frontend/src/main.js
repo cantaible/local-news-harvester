@@ -5,12 +5,15 @@ import Vue from "vue";
 import VueRouter from "vue-router";
 import VueResource from "vue-resource";
 import VueFire from "vuefire";
+import VueToast from "vue-toast-notification";
+import "vue-toast-notification/dist/theme-default.css";
 
 import App from "./App";
 
 Vue.use(VueRouter);
 Vue.use(VueResource);
 Vue.use(VueFire);
+Vue.use(VueToast);
 
 
 import Hello from "./components/Hello";

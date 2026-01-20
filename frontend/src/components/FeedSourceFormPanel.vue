@@ -57,11 +57,15 @@ export default {
             params.append('url', this.form.url)
             params.append('sourceType', this.form.sourceType)
             params.append('enabled', this.form.enabled)
-            console.log(this.form)
             const baseUrl = process.env.API_BASE_URL
-            this.$http.post(`${baseUrl}/feeds/new`, this.form, { emulateJSON: true }).then(()=>{
-                this.$emit('created')
-            })
+            this.$http.post(`${baseUrl}/feeds/new`, this.form, { emulateJSON: true })
+                .then(() => {
+                    this.$toast.open({ message: '添加成功', type: 'success' })
+                    this.$emit('created')
+                })
+                .catch(() => {
+                    this.$toast.open({ message: '添加失败', type: 'error' })
+                })
         }
     }
 }

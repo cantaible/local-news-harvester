@@ -17,6 +17,8 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.springboot3newsreader.ApiResponse;
 import com.example.springboot3newsreader.models.NewsArticle;
 import com.example.springboot3newsreader.services.NewsArticleService;
+import org.springframework.web.bind.annotation.RequestParam;
+
 
 @RestController
 @RequestMapping("/api/newsarticles")
@@ -40,6 +42,13 @@ public class NewsArticleController {
     return ResponseEntity.status(HttpStatus.NOT_FOUND)
       .body(new ApiResponse<>(404, "not found", null));
   }
+  
+  @GetMapping("/refresh")
+  public ResponseEntity<?> getRefreshedContent() {
+    List<NewsArticle> updatedArticles = newsArticleService.refreshFromRssFeeds();
+    return ResponseEntity.ok(new ApiResponse<>(200, "ok", updatedArticles));
+  }
+  
 
   @PostMapping("/seed")
   public ResponseEntity<?> seedToyArticles() {

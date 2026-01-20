@@ -50,13 +50,7 @@ public class FormController {
     FeedItem saved = feedItemService.save(feedItem);
 
     if ("RSS".equals(feedItem.getSourceType())) {
-      try {
-        rssIngestService.ingest(feedItem.getUrl());
-      } catch (Exception e) {
-        // 你说不做错误隔离，但这里至少不要让接口挂掉
-        // 可以选择直接抛出运行时异常
-        throw new RuntimeException(e);
-      }
+      rssIngestService.ingestAsync(feedItem.getUrl(), feedItem.getName());
     }
     return ResponseEntity.status(HttpStatus.CREATED)
     .body(new ApiResponse<>(200, "ok", saved));

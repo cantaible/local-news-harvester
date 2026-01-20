@@ -51,8 +51,8 @@ public class FeedItemController {
     List<FeedItem> feeds = new ArrayList<>();
 
     FeedItem bbc = new FeedItem();
-    bbc.setName("SEED_FEED_BBC_NEWS");
-    bbc.setUrl("https://feeds.bbci.co.uk/news/rss.xml");
+    bbc.setName("SEED_FEED_AI_JAZEERA");
+    bbc.setUrl("https://www.aljazeera.com/xml/rss/all.xml");
     bbc.setSourceType("RSS");
     bbc.setEnabled(true);
     feeds.add(bbc);
@@ -70,6 +70,14 @@ public class FeedItemController {
     web.setSourceType("WEB");
     web.setEnabled(true);
     feeds.add(web);
+
+    // https://www.jiqizhixin.com/rss
+    // https://www.qbitai.com/feed
+    // https://techcrunch.com/feed/
+    // https://www.theverge.com/rss/index.xml
+    // https://www.infoq.cn/feed
+    // https://www.artificialintelligence-news.com/feed/
+    // https://venturebeat.com/feed
 
     List<FeedItem> saved = feedItemService.saveAll(feeds);
     return ResponseEntity.ok(new ApiResponse<>(200, "seeded", saved));

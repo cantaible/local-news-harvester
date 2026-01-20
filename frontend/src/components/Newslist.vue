@@ -5,7 +5,6 @@
       <vue-waterfall-easy
       ref="waterfall"
       v-bind:imgsArr="imgsArr"
-      v-on:scrollReachBottom="getData"
       v-on:click="clickFn"
       v-on:imgError="imgErrorFn"
     >
@@ -23,7 +22,7 @@ import vueWaterfallEasy from 'vue-waterfall-easy'
 // https://github.com/lfyfly/vue-waterfall-easy/blob/master/README-CN.md
 export default {
   name: 'newslist',
-  props: ['source'],
+  props: ['articles'],
   components: {
     vueWaterfallEasy
   },
@@ -32,20 +31,17 @@ export default {
       imgsArr: []
     }
   },
+  watch: {
+    articles: function(val) {
+      this.imgsArr = (val || []).map(a => ({
+        src: a.tumbnailURL,
+        href: a.sourceURL,
+        title: a.title,
+        info: a.summary
+      }))
+    }
+  },
   methods: {
-    getData() {
-      const baseUrl = process.env.API_BASE_URL
-      this.$http.get(`${baseUrl}/api/newsarticles`).then(response => {
-        const list = response.body && response.body.data ? response.body.data : response.body
-        this.imgsArr = list.map(a => ({
-          src: a.tumbnailURL,
-          href: a.sourceURL,
-          title: a.title,
-          info: a.summary
-        }))
-        console.log(this.imgsArr)
-      })
-    },
     clickFn(event, {index, value}){
       if (event.target.tagName.toLowerCase() == 'img' && value.href) {
         window.open(value.href, '_blank')
@@ -54,10 +50,7 @@ export default {
     imgErrorFn(imgItem) {
       console.log('image load error', imgItem)
     }
-  },
-  created: function() {
-    this.getData();
-  },
+  }
 }
 
 </script>
