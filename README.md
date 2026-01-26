@@ -40,3 +40,11 @@ cd /Users/bytedance/Documents/Codes/local-news-harvester
 docker compose down -v
 docker compose up -d
 ```
+
+### 可以添加的新闻源
+```bash
+# venture beat
+https://venturebeat.com/feed
+# tech crunch
+https://techcrunch.com/feed/
+```

@@ -1,14 +1,13 @@
 package com.example.springboot3newsreader.services;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.time.LocalDateTime;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -16,8 +15,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.example.springboot3newsreader.models.FeedItem;
 import com.example.springboot3newsreader.models.NewsArticle;
+import com.example.springboot3newsreader.models.ThumbnailTask;
 import com.example.springboot3newsreader.repositories.FeedItemRepository;
 import com.example.springboot3newsreader.repositories.NewsArticleRepository;
+import com.example.springboot3newsreader.repositories.ThumbnailTaskRepository;
 
 @Service
 public class NewsArticleService {
@@ -28,6 +29,12 @@ public class NewsArticleService {
   FeedItemRepository feedItemRepository;
   @Autowired
   RssIngestService rssIngestService;
+  @Autowired
+  WebIngestService webIngestService;
+  @Autowired
+  ThumbnailTaskRepository thumbnailTaskRepository;
+  @Autowired
+  NewsArticleDedupeService newsArticleDedupeService;
 
   public List<NewsArticle> getAll(){ 
     return newsArticleRepository.findAll();
@@ -51,20 +58,12 @@ public class NewsArticleService {
   }
 
   public List<NewsArticle> refreshFromRssFeeds() {
-    // 1) 取所有 RSS 源
+    // 1) 取所有 RSS/WEB 源
     List<FeedItem> allFeeds = feedItemRepository.findAll();
     List<FeedItem> feeds = new ArrayList<>();
     for (FeedItem feed : allFeeds) {
-      if ("RSS".equals(feed.getSourceType())) {
+      if ("RSS".equals(feed.getSourceType()) || "WEB".equals(feed.getSourceType())) {
         feeds.add(feed);
-      }
-    }
-
-    // 2) 取已有 URL 集合
-    Set<String> existing = new HashSet<>();
-    for (NewsArticle a : newsArticleRepository.findAll()) {
-      if (a.getSourceURL() != null) {
-        existing.add(a.getSourceURL());
       }
     }
 
@@ -77,7 +76,13 @@ public class NewsArticleService {
           @Override
           public List<NewsArticle> call() {
             try {
-              return rssIngestService.parseOnly(feed.getUrl(), feed.getName());
+              if ("RSS".equals(feed.getSourceType())) {
+                return rssIngestService.parseOnly(feed.getUrl(), feed.getName());
+              }
+              if ("WEB".equals(feed.getSourceType())) {
+                return webIngestService.parseOnly(feed.getUrl(), feed.getName());
+              }
+              return new ArrayList<>();
             } catch (Exception e) {
               return new ArrayList<>();
             }
@@ -96,18 +101,32 @@ public class NewsArticleService {
         }
       }
 
-      // 5) 过滤新文章（按 sourceURL 去重）
-      List<NewsArticle> newOnes = new ArrayList<>();
-      for (NewsArticle a : all) {
-        String url = a.getSourceURL();
-        if (url != null && !existing.contains(url)) {
-          existing.add(url);
-          newOnes.add(a);
-        }
-      }
+      // 5) 去重（URL + 标题相似度）
+      List<NewsArticle> newOnes = newsArticleDedupeService.filterNewArticles(all);
 
       // 6) 批量保存并返回
-      return newsArticleRepository.saveAll(newOnes);
+      for (NewsArticle a : newOnes) {
+        a.setTumbnailURL(null);
+      }
+      List<NewsArticle> saved = newsArticleRepository.saveAll(newOnes);
+
+      // 7) 为新文章创建补图任务（可恢复）
+      List<ThumbnailTask> thumbnailTasks = new ArrayList<>();
+      for (NewsArticle a : saved) {
+        ThumbnailTask task = new ThumbnailTask();
+        task.setArticleId(a.getId());
+        task.setArticleUrl(a.getSourceURL());
+        task.setStatus("WAITING");
+        task.setAttempts(0);
+        task.setCreatedAt(LocalDateTime.now());
+        task.setUpdatedAt(LocalDateTime.now());
+        thumbnailTasks.add(task);
+      }
+      if (!thumbnailTasks.isEmpty()) {
+        thumbnailTaskRepository.saveAll(thumbnailTasks);
+      }
+
+      return saved;
 
     } finally {
       pool.shutdown();

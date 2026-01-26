@@ -4,6 +4,8 @@ import java.time.LocalDateTime;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
+import jakarta.persistence.Column;
+import jakarta.persistence.Lob;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -22,6 +24,7 @@ public class NewsArticle {
   // 文章标题
   String title;
   // 原文链接（唯一去重键）
+  @Column(length = 1024)
   String sourceURL;
   // 来源名称（展示用）
   String sourceName;
@@ -36,6 +39,8 @@ public class NewsArticle {
   // 缩略图链接，可为空
   String tumbnailURL;
   // 原文内容/摘要，可为空
+  @Lob
+  @Column(columnDefinition = "LONGTEXT")
   String rawContent;
 
   

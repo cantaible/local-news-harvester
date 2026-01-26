@@ -6,4 +6,6 @@ import com.example.springboot3newsreader.models.FeedItem;
 
 public interface FeedItemRepository extends ListCrudRepository<FeedItem, Long> {
   void deleteByNameStartingWith(String prefix);
+
+  boolean existsByNameAndUrl(String name, String url);
 }
