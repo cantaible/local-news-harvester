@@ -1,13 +1,7 @@
 package com.example.springboot3newsreader.services;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
@@ -19,24 +13,15 @@ import com.example.springboot3newsreader.models.NewsArticle;
 import com.example.springboot3newsreader.models.ThumbnailTask;
 import com.example.springboot3newsreader.repositories.NewsArticleRepository;
 import com.example.springboot3newsreader.repositories.ThumbnailTaskRepository;
+import com.example.springboot3newsreader.services.webadapters.WebAdapter;
 
 @Service
 public class ThumbnailTaskService {
-
-  // 用正则抓取 HTML 里的 OG/Twitter 首图
-  private static final Pattern OG_IMAGE_PATTERN =
-    Pattern.compile("<meta\\s+property=[\"']og:image[\"']\\s+content=[\"']([^\"']+)[\"']",
-      Pattern.CASE_INSENSITIVE);
-  private static final Pattern TWITTER_IMAGE_PATTERN =
-    Pattern.compile("<meta\\s+name=[\"']twitter:image[\"']\\s+content=[\"']([^\"']+)[\"']",
-      Pattern.CASE_INSENSITIVE);
 
   // 单次扫描处理的任务上限（避免一次性处理过多任务）
   private static final int BATCH_SIZE = 10;
   // 最大重试次数（超过则不再处理）
   private static final int MAX_ATTEMPTS = 3;
-  // 拉取 HTML 的超时时间（毫秒）
-  private static final int TIMEOUT_MS = 5000;
   // 失败后下次重试的延迟时间（分钟）
   private static final int RETRY_DELAY_MINUTES = 30;
 
@@ -50,6 +35,8 @@ public class ThumbnailTaskService {
   ThumbnailTaskRepository thumbnailTaskRepository;
   @Autowired
   NewsArticleRepository newsArticleRepository;
+  @Autowired
+  private List<WebAdapter> webAdapters;
 
   // 定时任务：周期性扫描可执行任务并处理
   @Scheduled(fixedDelay = 15000)
@@ -121,8 +108,8 @@ public class ThumbnailTaskService {
         return;
       }
 
-      // 8) 抓取 HTML 并解析 OG/Twitter 首图
-      String image = fetchOgImage(url);
+      // 8) 使用站点适配器补图（每个站点可有独立规则）
+      String image = fetchThumbnailByAdapter(url);
       if (image == null || image.isBlank()) {
         failTask(task, "thumbnail_not_found");
         return;
@@ -156,41 +143,14 @@ public class ThumbnailTaskService {
     thumbnailTaskRepository.save(task);
   }
 
-  // 抓取文章 HTML 并提取 OG/Twitter 首图 URL
-  private String fetchOgImage(String link) {
-    HttpURLConnection connection = null;
-    try {
-      URL url = new URL(link);
-      connection = (HttpURLConnection) url.openConnection();
-      connection.setRequestProperty("User-Agent", "Mozilla/5.0");
-      connection.setConnectTimeout(TIMEOUT_MS);
-      connection.setReadTimeout(TIMEOUT_MS);
-      try (BufferedReader reader = new BufferedReader(
-        new InputStreamReader(connection.getInputStream()))) {
-        StringBuilder html = new StringBuilder();
-        String line;
-        while ((line = reader.readLine()) != null) {
-          html.append(line);
-          // 限制读取大小，避免过大 HTML 占用内存
-          if (html.length() > 200_000) {
-            break;
-          }
+  private String fetchThumbnailByAdapter(String url) {
+    for (WebAdapter adapter : webAdapters) {
+      if (adapter.supports(url)) {
+        try {
+          return adapter.fetchThumbnailUrl(url);
+        } catch (Exception e) {
+          return null;
         }
-        // 先尝试 OG 图，再尝试 Twitter 图
-        Matcher ogMatcher = OG_IMAGE_PATTERN.matcher(html);
-        if (ogMatcher.find()) {
-          return ogMatcher.group(1);
-        }
-        Matcher twitterMatcher = TWITTER_IMAGE_PATTERN.matcher(html);
-        if (twitterMatcher.find()) {
-          return twitterMatcher.group(1);
-        }
-      }
-    } catch (Exception e) {
-      return null;
-    } finally {
-      if (connection != null) {
-        connection.disconnect();
       }
     }
     return null;

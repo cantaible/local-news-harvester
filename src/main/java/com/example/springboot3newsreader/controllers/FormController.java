@@ -14,8 +14,7 @@ import com.example.springboot3newsreader.repositories.FeedItemRepository;
 import com.example.springboot3newsreader.repositories.NewsArticleRepository;
 import com.example.springboot3newsreader.repositories.ThumbnailTaskRepository;
 import com.example.springboot3newsreader.services.FeedItemService;
-import com.example.springboot3newsreader.services.RssIngestService;
-import com.example.springboot3newsreader.services.WebIngestService;
+import com.example.springboot3newsreader.services.IngestPipelineService;
 import com.example.springboot3newsreader.ApiResponse;
 
 @RestController
@@ -30,9 +29,7 @@ public class FormController {
   @Autowired
   private ThumbnailTaskRepository thumbnailTaskRepository;
   @Autowired
-  private RssIngestService rssIngestService;
-  @Autowired
-  private WebIngestService webIngestService;
+  private IngestPipelineService ingestPipelineService;
 
 
   @PostMapping("/feeds/new")
@@ -89,13 +86,8 @@ public class FormController {
     FeedItem saved = feedItemService.save(feedItem);
     System.out.println("[feeds/new] saved id=" + saved.getId());
 
-    if ("RSS".equals(feedItem.getSourceType())) {
-      System.out.println("[feeds/new] trigger RSS ingest async");
-      rssIngestService.ingestAsync(feedItem.getUrl(), feedItem.getName());
-    } else if ("WEB".equals(feedItem.getSourceType())) {
-      System.out.println("[feeds/new] trigger WEB ingest async");
-      webIngestService.ingestAsync(feedItem.getUrl(), feedItem.getName());
-    }
+    System.out.println("[feeds/new] trigger ingest pipeline async");
+    ingestPipelineService.ingestFeedAsync(feedItem);
     System.out.println("[feeds/new] response 201");
     return ResponseEntity.status(HttpStatus.CREATED)
     .body(new ApiResponse<>(200, "ok", saved));

@@ -77,4 +77,17 @@ public class AieraWebAdapter extends BaseWebAdapter {
     // 先快返，正文信息后续再异步补
     return previewOnly(siteUrl, sourceName);
   }
+
+  @Override
+  public String fetchThumbnailUrl(String articleUrl) throws Exception {
+    Document doc = fetchDocument(articleUrl);
+    Element img = doc.selectFirst(".post-thumbnail img, .featured-image img, .entry-content img");
+    if (img != null) {
+      String best = bestImageSrc(img);
+      if (best != null && !best.isBlank()) {
+        return best;
+      }
+    }
+    return super.fetchThumbnailUrl(articleUrl);
+  }
 }

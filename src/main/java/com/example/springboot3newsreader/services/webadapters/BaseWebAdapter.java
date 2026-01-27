@@ -285,6 +285,28 @@ public abstract class BaseWebAdapter implements WebAdapter {
     return a;
   }
 
+  // 默认首图抽取：OG/Twitter → 正文首图
+  @Override
+  public String fetchThumbnailUrl(String articleUrl) throws Exception {
+    Document doc = fetchDocument(articleUrl);
+    String og = metaContent(doc, "property", "og:image");
+    if (og != null && !og.isBlank()) {
+      return og.trim();
+    }
+    String twitter = metaContent(doc, "name", "twitter:image");
+    if (twitter != null && !twitter.isBlank()) {
+      return twitter.trim();
+    }
+    Element img = doc.selectFirst("article img, .article img");
+    if (img != null) {
+      String src = bestImageSrc(img);
+      if (src != null && !src.isBlank()) {
+        return src;
+      }
+    }
+    return null;
+  }
+
   protected JsonNode findNewsArticleJsonLd(Document doc) {
     Elements scripts = doc.select("script[type=application/ld+json]");
     for (Element script : scripts) {
@@ -418,5 +440,52 @@ public abstract class BaseWebAdapter implements WebAdapter {
       // ignore
     }
     return fallback;
+  }
+
+  protected String bestImageSrc(Element img) {
+    if (img == null) {
+      return null;
+    }
+    String srcset = img.attr("srcset");
+    String best = pickBestFromSrcset(srcset);
+    if (best != null && !best.isBlank()) {
+      String abs = img.absUrl(best);
+      return abs == null || abs.isBlank() ? best : abs;
+    }
+    String src = img.absUrl("src");
+    if (src == null || src.isBlank()) {
+      src = img.attr("src");
+    }
+    return src;
+  }
+
+  protected String pickBestFromSrcset(String srcset) {
+    if (srcset == null || srcset.isBlank()) {
+      return null;
+    }
+    String[] parts = srcset.split(",");
+    int bestW = -1;
+    String bestUrl = null;
+    for (String part : parts) {
+      String item = part.trim();
+      if (item.isEmpty()) {
+        continue;
+      }
+      String[] segs = item.split("\\s+");
+      String url = segs[0];
+      int width = 0;
+      if (segs.length > 1 && segs[1].endsWith("w")) {
+        try {
+          width = Integer.parseInt(segs[1].replace("w", ""));
+        } catch (Exception e) {
+          width = 0;
+        }
+      }
+      if (width >= bestW) {
+        bestW = width;
+        bestUrl = url;
+      }
+    }
+    return bestUrl;
   }
 }

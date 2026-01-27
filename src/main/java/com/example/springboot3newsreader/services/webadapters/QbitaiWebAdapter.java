@@ -223,4 +223,20 @@ public class QbitaiWebAdapter extends BaseWebAdapter {
     }
     return null;
   }
+
+  @Override
+  public String fetchThumbnailUrl(String articleUrl) throws Exception {
+    Document doc = fetchDocument(articleUrl);
+    Element img = doc.selectFirst(".pgc-img img");
+    if (img == null) {
+      img = doc.selectFirst(".article img");
+    }
+    if (img != null) {
+      String best = bestImageSrc(img);
+      if (best != null && !best.isBlank()) {
+        return best;
+      }
+    }
+    return super.fetchThumbnailUrl(articleUrl);
+  }
 }
