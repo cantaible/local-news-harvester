@@ -1,0 +1,242 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_news_application/config/app_config.dart';
+import 'package:flutter_news_application/models/news_article.dart';
+import 'package:flutter_news_application/models/news_filter_state.dart';
+import 'package:flutter_news_application/widgets/news_card.dart';
+import 'package:flutter_news_application/widgets/news_filter_bar.dart';
+
+class NewsArticlesPage extends StatefulWidget {
+  const NewsArticlesPage({super.key});
+
+  @override
+  State<NewsArticlesPage> createState() => _NewsArticlesPageState();
+}
+
+class _NewsArticlesPageState extends State<NewsArticlesPage> {
+  NewsFilterState _filterState = const NewsFilterState();
+  List<NewsArticle> _allArticles = <NewsArticle>[];
+  bool _isLoading = false;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchArticles();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final List<NewsArticle> filteredArticles = _applyFilters(
+      _allArticles,
+      _filterState,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          NewsFilterBar(
+            state: _filterState,
+            availableSources: _collectSources(_allArticles),
+            availableTags: _collectTags(_allArticles),
+            onChanged: (next) {
+              setState(() {
+                _filterState = next;
+              });
+            },
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: _buildBody(context, filteredArticles),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<String> _collectSources(List<NewsArticle> articles) {
+    final Set<String> sources = <String>{};
+    for (final NewsArticle article in articles) {
+      sources.add(article.sourceName);
+    }
+    return sources.toList()..sort();
+  }
+
+  List<String> _collectTags(List<NewsArticle> articles) {
+    final Set<String> tags = <String>{};
+    for (final NewsArticle article in articles) {
+      final List<String> articleTags = article.tags ?? const <String>[];
+      tags.addAll(articleTags);
+    }
+    return tags.toList()..sort();
+  }
+
+  List<NewsArticle> _applyFilters(
+    List<NewsArticle> input,
+    NewsFilterState state,
+  ) {
+    final String keyword = state.keyword.trim().toLowerCase();
+    final Set<String> selectedSources = state.selectedSources;
+    final Set<String> selectedTags = state.selectedTags;
+    final DateTimeRange? selectedRange = state.selectedDateRange;
+
+    final List<NewsArticle> result = <NewsArticle>[];
+    for (final NewsArticle article in input) {
+      if (keyword.isNotEmpty) {
+        final String haystack =
+            '${article.title} ${article.summary}'.toLowerCase();
+        if (!haystack.contains(keyword)) {
+          continue;
+        }
+      }
+
+      if (selectedSources.isNotEmpty &&
+          !selectedSources.contains(article.sourceName)) {
+        continue;
+      }
+
+      if (selectedTags.isNotEmpty) {
+        final List<String> tags = article.tags ?? const <String>[];
+        bool matches = false;
+        for (final String tag in tags) {
+          if (selectedTags.contains(tag)) {
+            matches = true;
+            break;
+          }
+        }
+        if (!matches) {
+          continue;
+        }
+      }
+
+      if (selectedRange != null) {
+        final DateTime date = article.publishedAt.toLocal();
+        final DateTime start = DateTime(
+          selectedRange.start.year,
+          selectedRange.start.month,
+          selectedRange.start.day,
+        );
+        final DateTime end = DateTime(
+          selectedRange.end.year,
+          selectedRange.end.month,
+          selectedRange.end.day,
+          23,
+          59,
+          59,
+        );
+        if (date.isBefore(start) || date.isAfter(end)) {
+          continue;
+        }
+      }
+
+      result.add(article);
+    }
+
+    result.sort((a, b) {
+      final int comparison = a.publishedAt.compareTo(b.publishedAt);
+      return state.sortOrder == SortOrder.latest ? -comparison : comparison;
+    });
+
+    return result;
+  }
+
+  Future<void> _fetchArticles() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    final HttpClient client = HttpClient();
+    try {
+      final Uri uri = Uri.parse('${AppConfig.baseUrl}/api/newsarticles');
+      final HttpClientRequest request = await client.getUrl(uri);
+      final HttpClientResponse response = await request.close();
+      final String body = await response.transform(utf8.decoder).join();
+      if (response.statusCode != 200) {
+        throw HttpException(
+          'Failed to fetch articles: ${response.statusCode}',
+          uri: uri,
+        );
+      }
+
+      final Map<String, dynamic> json =
+          jsonDecode(body) as Map<String, dynamic>;
+      final List<dynamic> data = json['data'] as List<dynamic>;
+      final List<NewsArticle> articles = data
+          .map((item) => NewsArticle.fromJson(item as Map<String, dynamic>))
+          .toList();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _allArticles = articles;
+        _isLoading = false;
+      });
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _errorMessage = error.toString();
+        _isLoading = false;
+      });
+    } finally {
+      client.close();
+    }
+  }
+
+  Widget _buildBody(
+    BuildContext context,
+    List<NewsArticle> filteredArticles,
+  ) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Text(
+          _errorMessage!,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: Theme.of(context).colorScheme.error,
+              ),
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
+
+    if (filteredArticles.isEmpty) {
+      return _buildEmptyState(context);
+    }
+
+    return GridView.builder(
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: 0.72,
+      ),
+      itemCount: filteredArticles.length,
+      itemBuilder: (context, index) {
+        return NewsCard(article: filteredArticles[index]);
+      },
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context) {
+    return Center(
+      child: Text(
+        'No articles match the current filters.',
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+}
