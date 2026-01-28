@@ -15,6 +15,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import com.example.springboot3newsreader.models.NewsArticle;
+import com.example.springboot3newsreader.models.NewsCategory;
 import com.example.springboot3newsreader.models.ThumbnailTask;
 import com.example.springboot3newsreader.repositories.NewsArticleRepository;
 import com.example.springboot3newsreader.repositories.ThumbnailTaskRepository;
@@ -33,6 +34,11 @@ public class RssIngestService {
   private ThumbnailTaskRepository thumbnailTaskRepository;
 
   public List<NewsArticle> parseOnly(String rssUrl, String sourceName) throws Exception {
+    return parseOnly(rssUrl, sourceName, null);
+  }
+
+  public List<NewsArticle> parseOnly(String rssUrl, String sourceName, NewsCategory category)
+    throws Exception {
     System.out.println("[rss] parse start: " + rssUrl);
     // 这里复制 ingest 里的解析逻辑
     // 唯一区别：最后 return articles，不要 saveAll
@@ -93,6 +99,9 @@ public class RssIngestService {
       if (thumbnailUrl != null) {
         a.setTumbnailURL(thumbnailUrl);
       }
+      if (category != null) {
+        a.setCategory(category);
+      }
 
       // tags / thumbnail / rawContent 可留空
       articles.add(a);
@@ -103,8 +112,13 @@ public class RssIngestService {
 
   // 解析 RSS 并批量保存为 NewsArticle
   public List<NewsArticle> ingest(String rssUrl, String sourceName) throws Exception {
+    return ingest(rssUrl, sourceName, null);
+  }
+
+  public List<NewsArticle> ingest(String rssUrl, String sourceName, NewsCategory category)
+    throws Exception {
     System.out.println("[rss] ingest start: " + rssUrl);
-    List<NewsArticle> articles = parseOnly(rssUrl, sourceName);
+    List<NewsArticle> articles = parseOnly(rssUrl, sourceName, category);
     System.out.println("[rss] parsed articles: " + articles.size());
     // 批量写入数据库
     int before = articles.size();

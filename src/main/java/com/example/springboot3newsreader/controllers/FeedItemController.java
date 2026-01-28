@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.springboot3newsreader.ApiResponse;
 import com.example.springboot3newsreader.models.FeedItem;
+import com.example.springboot3newsreader.models.NewsCategory;
 import com.example.springboot3newsreader.services.FeedItemService;
 
 // FeedItem 的 REST API 控制器
@@ -55,6 +56,7 @@ public class FeedItemController {
     bbc.setUrl("https://www.aljazeera.com/xml/rss/all.xml");
     bbc.setSourceType("RSS");
     bbc.setEnabled(true);
+    bbc.setCategory(NewsCategory.UNCATEGORIZED);
     feeds.add(bbc);
 
     FeedItem reuters = new FeedItem();
@@ -62,6 +64,7 @@ public class FeedItemController {
     reuters.setUrl("https://feeds.reuters.com/reuters/topNews");
     reuters.setSourceType("RSS");
     reuters.setEnabled(true);
+    reuters.setCategory(NewsCategory.UNCATEGORIZED);
     feeds.add(reuters);
 
     FeedItem web = new FeedItem();
@@ -69,6 +72,7 @@ public class FeedItemController {
     web.setUrl("https://www.reuters.com");
     web.setSourceType("WEB");
     web.setEnabled(true);
+    web.setCategory(NewsCategory.UNCATEGORIZED);
     feeds.add(web);
 
     // https://www.jiqizhixin.com/rss

@@ -10,11 +10,13 @@ import java.util.List;
 
 import com.example.springboot3newsreader.models.FeedItem;
 import com.example.springboot3newsreader.models.NewsArticle;
+import com.example.springboot3newsreader.models.NewsCategory;
 import com.example.springboot3newsreader.repositories.FeedItemRepository;
 import com.example.springboot3newsreader.repositories.NewsArticleRepository;
 import com.example.springboot3newsreader.repositories.ThumbnailTaskRepository;
 import com.example.springboot3newsreader.services.FeedItemService;
 import com.example.springboot3newsreader.services.IngestPipelineService;
+import com.example.springboot3newsreader.services.WebIngestService;
 import com.example.springboot3newsreader.ApiResponse;
 
 @RestController
@@ -30,6 +32,8 @@ public class FormController {
   private ThumbnailTaskRepository thumbnailTaskRepository;
   @Autowired
   private IngestPipelineService ingestPipelineService;
+  @Autowired
+  private WebIngestService webIngestService;
 
 
   @PostMapping("/feeds/new")
@@ -68,6 +72,10 @@ public class FormController {
       System.out.println("[feeds/new] validation failed: enabled is null");
       return ResponseEntity.badRequest()
       .body(new ApiResponse<>(400, "enabled should not be null!", null));
+    }
+    if (feedItem.getCategory() == null) {
+      System.out.println("[feeds/new] category missing, default to UNCATEGORIZED");
+      feedItem.setCategory(NewsCategory.UNCATEGORIZED);
     }
 
     String name = feedItem.getName().trim();

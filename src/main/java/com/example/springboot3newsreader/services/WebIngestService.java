@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 
 import com.example.springboot3newsreader.ApiResponse;
 import com.example.springboot3newsreader.models.NewsArticle;
+import com.example.springboot3newsreader.models.NewsCategory;
 import com.example.springboot3newsreader.models.ThumbnailTask;
 import com.example.springboot3newsreader.repositories.NewsArticleRepository;
 import com.example.springboot3newsreader.repositories.ThumbnailTaskRepository;
@@ -29,12 +30,23 @@ public class WebIngestService {
   private final ObjectMapper objectMapper = new ObjectMapper();
 
   public List<NewsArticle> parseOnly(String siteUrl, String sourceName) throws Exception {
+    return parseOnly(siteUrl, sourceName, null);
+  }
+
+  public List<NewsArticle> parseOnly(String siteUrl, String sourceName, NewsCategory category)
+    throws Exception {
     System.out.println("[web] parse start: " + siteUrl);
     // 选择匹配的适配器（按 @Order 排序，优先更具体的源）
     for (WebAdapter adapter : webAdapters) {
       if (adapter.supports(siteUrl)) {
         System.out.println("[web] adapter selected: " + adapter.getClass().getSimpleName());
-        return adapter.parseOnly(siteUrl, sourceName);
+        List<NewsArticle> articles = adapter.parseOnly(siteUrl, sourceName);
+        if (category != null && articles != null) {
+          for (NewsArticle a : articles) {
+            a.setCategory(category);
+          }
+        }
+        return articles;
       }
     }
     throw new IllegalStateException("no web adapter found for " + siteUrl);
@@ -53,9 +65,14 @@ public class WebIngestService {
   }
 
   public List<NewsArticle> ingest(String siteUrl, String sourceName) throws Exception {
+    return ingest(siteUrl, sourceName, null);
+  }
+
+  public List<NewsArticle> ingest(String siteUrl, String sourceName, NewsCategory category)
+    throws Exception {
     System.out.println("[web] ingest start: " + siteUrl);
     // 先解析，再批量入库
-    List<NewsArticle> articles = parseOnly(siteUrl, sourceName);
+    List<NewsArticle> articles = parseOnly(siteUrl, sourceName, category);
     System.out.println("[web] parsed articles: " + articles.size());
     int before = articles.size();
     articles = newsArticleDedupeService.filterNewArticles(articles);

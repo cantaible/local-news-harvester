@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import com.example.springboot3newsreader.models.FeedItem;
 import com.example.springboot3newsreader.models.NewsArticle;
+import com.example.springboot3newsreader.models.NewsCategory;
 
 @Service
 public class IngestPipelineService {
@@ -23,11 +24,15 @@ public class IngestPipelineService {
       return new ArrayList<>();
     }
     String type = feed.getSourceType();
+    NewsCategory category = feed.getCategory();
+    if (category == null) {
+      category = NewsCategory.UNCATEGORIZED;
+    }
     if ("RSS".equals(type)) {
-      return rssIngestService.ingest(feed.getUrl(), feed.getName());
+      return rssIngestService.ingest(feed.getUrl(), feed.getName(), category);
     }
     if ("WEB".equals(type)) {
-      return webIngestService.ingest(feed.getUrl(), feed.getName());
+      return webIngestService.ingest(feed.getUrl(), feed.getName(), category);
     }
     return new ArrayList<>();
   }

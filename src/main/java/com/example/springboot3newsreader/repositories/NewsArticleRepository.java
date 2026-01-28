@@ -7,6 +7,7 @@ import org.springframework.data.domain.Pageable;
 import java.util.List;
 
 import com.example.springboot3newsreader.models.NewsArticle;
+import com.example.springboot3newsreader.models.NewsCategory;
 
 public interface NewsArticleRepository extends JpaRepository<NewsArticle, Long> {
   void deleteBySourceNameStartingWith(String prefix);
@@ -16,4 +17,6 @@ public interface NewsArticleRepository extends JpaRepository<NewsArticle, Long> 
 
   @Query("select a.title from NewsArticle a where a.sourceName = :sourceName and a.title is not null order by a.id desc")
   List<String> findRecentTitlesBySourceName(@Param("sourceName") String sourceName, Pageable pageable);
+
+  List<NewsArticle> findByCategoryOrderByIdDesc(NewsCategory category);
 }

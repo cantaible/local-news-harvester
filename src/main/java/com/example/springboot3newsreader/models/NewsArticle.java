@@ -6,6 +6,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.Column;
 import jakarta.persistence.Lob;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.EnumType;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -38,6 +40,9 @@ public class NewsArticle {
   String tags;
   // 缩略图链接，可为空
   String tumbnailURL;
+  // 分类（一级目录）
+  @Enumerated(EnumType.STRING)
+  NewsCategory category;
   // 原文内容/摘要，可为空
   @Lob
   @Column(columnDefinition = "LONGTEXT")

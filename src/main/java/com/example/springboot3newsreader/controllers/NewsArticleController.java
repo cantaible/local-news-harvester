@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.springboot3newsreader.ApiResponse;
 import com.example.springboot3newsreader.models.NewsArticle;
+import com.example.springboot3newsreader.models.NewsCategory;
 import com.example.springboot3newsreader.services.NewsArticleService;
 import org.springframework.web.bind.annotation.RequestParam;
 
@@ -77,6 +78,7 @@ public class NewsArticleController {
       article.setSummary("Toy summary " + index);
       article.setTags("[\"toy\",\"seed\"]");
       article.setTumbnailURL(thumbnailUrl);
+      article.setCategory(NewsCategory.UNCATEGORIZED);
       article.setRawContent("Toy content " + index);
       articles.add(article);
     }
