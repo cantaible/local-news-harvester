@@ -1,50 +1,64 @@
-# Spring Boot 3 News Reader
+# Local News Harvester
 
-## 本地重建与启动流程
+## 项目简介
+本项目是一个本地新闻聚合与阅读器，后端负责抓取/整理新闻源，前端提供移动端 UI 展示与浏览。
 
-### 1. 构建 Vue 前端（在 frontend/ 下）
+## 功能概览
+- 新闻源管理：添加 RSS / Web 类型的源并触发抓取
+- 内容聚合：按分类查看、刷新新闻列表
+- 图片代理：为来源站点图片提供统一代理接口
+- 前端展示：Flutter 应用展示来源列表与文章详情
+
+## 快速开始
+
+### 1. 启动数据库（MariaDB）
 ```bash
-cd /Users/bytedance/Documents/Codes/local-news-harvester/frontend
-npm install --legacy-peer-deps --ignore-scripts
-npm run build
-```
-
-说明：
-- 这个前端依赖较旧，`--legacy-peer-deps` 用来绕过依赖冲突。
-- `--ignore-scripts` 用来跳过旧版依赖里的二进制构建脚本（如 `grpc`/`chromedriver`）。
-- 构建产物输出在 `frontend/dist/`。
-
-### 2. 启动 Spring Boot 后端（根目录）
-```bash
-cd /Users/bytedance/Documents/Codes/local-news-harvester
-SPRING_DOCKER_COMPOSE_ENABLED=false ./mvnw -DskipTests spring-boot:run
-```
-
-说明：
-- 当前项目启用了 Spring Boot Docker Compose 集成，如果本机没有可用 Docker，建议临时关闭。
-- 后端默认端口：`http://localhost:8080`
-
-### 3. 启动 Vue 前端（另开终端）
-```bash
-cd /Users/bytedance/Documents/Codes/local-news-harvester/frontend
-npm run dev
-```
-
-说明：
-- 已将前端开发端口固定为 `8082`（见 `frontend/package.json`）。
-- 前端地址：`http://localhost:8082`
-
-### 清空数据库
-```bash
-cd /Users/bytedance/Documents/Codes/local-news-harvester
-docker compose down -v
 docker compose up -d
 ```
 
-### 可以添加的新闻源
+### 2. 启动后端（Spring Boot）
 ```bash
-# venture beat
-https://venturebeat.com/feed
-# tech crunch
-https://techcrunch.com/feed/
+SPRING_DOCKER_COMPOSE_ENABLED=false ./mvnw -DskipTests spring-boot:run
 ```
+
+后端默认地址：`http://localhost:8080`
+
+### 3. 启动 Flutter 前端
+```bash
+cd flutter_news_application
+flutter pub get
+flutter run
+```
+
+Flutter 默认会请求 `http://localhost:8080` 的 API（见 `flutter_news_application/lib/config/app_config.dart`）。
+
+## 配置说明
+- 数据库配置：`src/main/resources/application.properties`
+- Docker 环境变量：`.env`（默认账号已配置）
+- 关闭 Spring Docker Compose 自动启动：`SPRING_DOCKER_COMPOSE_ENABLED=false`
+- CORS 允许的前端地址：`src/main/java/com/example/springboot3newsreader/config/CorsConfig.java`
+
+如果不使用 Docker，请自行准备 MariaDB，并确保以下连接信息一致：
+- DB 名称：`news_reader`
+- 用户名：`reader`
+- 密码：`readerpass`
+
+## 数据接口
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/api/categories` | 获取全部分类 |
+| GET | `/api/categories/{category}/newsarticles` | 按分类获取文章 |
+| GET | `/api/newsarticles` | 获取全部文章 |
+| GET | `/api/newsarticles/{id}` | 获取单条文章 |
+| GET | `/api/newsarticles/refresh` | 从 RSS 刷新文章 |
+| POST | `/api/newsarticles/seed` | 插入示例文章 |
+| DELETE | `/api/newsarticles/seed` | 删除示例文章 |
+| GET | `/api/feeditems` | 获取全部新闻源 |
+| GET | `/api/feeditems/{id}` | 获取单条新闻源 |
+| POST | `/api/feeditems/seed` | 插入示例新闻源 |
+| DELETE | `/api/feeditems/seed` | 删除示例新闻源 |
+| POST | `/feeds/new` | 新建新闻源（表单提交） |
+| POST | `/feeds/preview` | 预览 Web 类型新闻源 |
+| POST | `/admin/clear` | 清空业务表 |
+| GET | `/api/image?url=...` | 图片代理 |
