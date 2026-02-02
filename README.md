@@ -77,6 +77,9 @@ Flutter 默认会请求 `http://localhost:8080` 的 API（见 `flutter_news_appl
 ```bash
 git clone <your-repo-url>
 cd local-news-harvester
+
+# 重要：复制环境变量配置
+cp .env.example .env
 ```
 
 ### 2. 启动服务
