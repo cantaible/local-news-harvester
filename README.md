@@ -118,6 +118,19 @@ curl -X POST http://150.158.113.98:9090/api/newsarticles/search \
 ```
 > **提示**：`includeContent` 默认为 `false`，即不返回大段 HTML 正文。如需详情页展示，请设为 `true`。
 
+#### 刷新更多新闻
+使用以下命令手动触发 RSS 源的刷新：
+
+**方式 A：使用 IP (HTTP)**
+```bash
+curl http://150.158.113.98:9090/api/newsarticles/refresh
+```
+
+**方式 B：使用 Cpolar (HTTPS)**
+```bash
+curl https://5a9892d3.r8.cpolar.cn/api/newsarticles/refresh
+```
+
 ### 5. (可选) 配置公网 HTTPS 访问 (Cpolar)
 如果需要通过公网 HTTPS 访问，可以使用 cpolar 进行内网穿透。
 
