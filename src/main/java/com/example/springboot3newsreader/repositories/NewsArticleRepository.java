@@ -9,7 +9,9 @@ import java.util.List;
 import com.example.springboot3newsreader.models.NewsArticle;
 import com.example.springboot3newsreader.models.NewsCategory;
 
-public interface NewsArticleRepository extends JpaRepository<NewsArticle, Long> {
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+
+public interface NewsArticleRepository extends JpaRepository<NewsArticle, Long>, JpaSpecificationExecutor<NewsArticle> {
   void deleteBySourceNameStartingWith(String prefix);
 
   @Query("select a.sourceURL from NewsArticle a where a.sourceURL is not null")

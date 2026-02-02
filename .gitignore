@@ -49,3 +49,6 @@ pnpm-debug.log*
 
 /images
 
+.tencent_cloud
+/wewerss_development
+

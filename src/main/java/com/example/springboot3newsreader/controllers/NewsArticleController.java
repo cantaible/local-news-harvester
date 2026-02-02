@@ -19,7 +19,8 @@ import com.example.springboot3newsreader.models.NewsArticle;
 import com.example.springboot3newsreader.models.NewsCategory;
 import com.example.springboot3newsreader.services.NewsArticleService;
 import org.springframework.web.bind.annotation.RequestParam;
-
+import org.springframework.web.bind.annotation.RequestBody;
+import com.example.springboot3newsreader.models.dto.NewsArticleSearchRequest;
 
 @RestController
 @RequestMapping("/api/newsarticles")
@@ -37,33 +38,38 @@ public class NewsArticleController {
   @GetMapping("/{id}")
   public ResponseEntity<?> getNewsArticle(@PathVariable Long id) {
     Optional<NewsArticle> theItem = newsArticleService.getById(id);
-    if (theItem.isPresent()){
+    if (theItem.isPresent()) {
       return ResponseEntity.ok(new ApiResponse<>(200, "ok", theItem.get()));
     }
     return ResponseEntity.status(HttpStatus.NOT_FOUND)
-      .body(new ApiResponse<>(404, "not found", null));
+        .body(new ApiResponse<>(404, "not found", null));
   }
-  
+
   @GetMapping("/refresh")
   public ResponseEntity<?> getRefreshedContent() {
     List<NewsArticle> updatedArticles = newsArticleService.refreshFromRssFeeds();
     return ResponseEntity.ok(new ApiResponse<>(200, "ok", updatedArticles));
   }
-  
+
+  @PostMapping("/search")
+  public ResponseEntity<?> searchArticles(@RequestBody NewsArticleSearchRequest request) {
+    List<NewsArticle> results = newsArticleService.search(request);
+    return ResponseEntity.ok(new ApiResponse<>(200, "ok", results));
+  }
 
   @PostMapping("/seed")
   public ResponseEntity<?> seedToyArticles() {
     String[] sourceUrls = {
-      "https://en.wikipedia.org/wiki/Artificial_intelligence",
-      "https://en.wikipedia.org/wiki/Machine_learning",
-      "https://en.wikipedia.org/wiki/Natural_language_processing",
-      "https://en.wikipedia.org/wiki/Computer_vision",
-      "https://en.wikipedia.org/wiki/Deep_learning",
-      "https://en.wikipedia.org/wiki/Neural_network",
-      "https://en.wikipedia.org/wiki/Data_science",
-      "https://en.wikipedia.org/wiki/Big_data",
-      "https://en.wikipedia.org/wiki/Information_retrieval",
-      "https://en.wikipedia.org/wiki/Web_scraping"
+        "https://en.wikipedia.org/wiki/Artificial_intelligence",
+        "https://en.wikipedia.org/wiki/Machine_learning",
+        "https://en.wikipedia.org/wiki/Natural_language_processing",
+        "https://en.wikipedia.org/wiki/Computer_vision",
+        "https://en.wikipedia.org/wiki/Deep_learning",
+        "https://en.wikipedia.org/wiki/Neural_network",
+        "https://en.wikipedia.org/wiki/Data_science",
+        "https://en.wikipedia.org/wiki/Big_data",
+        "https://en.wikipedia.org/wiki/Information_retrieval",
+        "https://en.wikipedia.org/wiki/Web_scraping"
     };
     String thumbnailUrl = "https://upload.wikimedia.org/wikipedia/commons/thumb/6/63/Wikipedia-logo.png/320px-Wikipedia-logo.png";
     List<NewsArticle> articles = new ArrayList<>();
@@ -91,5 +97,5 @@ public class NewsArticleController {
     newsArticleService.deleteBySourceNamePrefix("TOY_");
     return ResponseEntity.ok(new ApiResponse<>(200, "deleted", null));
   }
-  
+
 }

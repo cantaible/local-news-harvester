@@ -17,6 +17,23 @@ services:
     networks:
       - spring-network
 
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "9090:8080"
+    environment:
+      # Override DB URL to use the service name 'database' instead of 'localhost'
+      SPRING_DATASOURCE_URL: jdbc:mariadb://database:3306/news_reader?useUnicode=true&characterEncoding=utf-8&useSSL=false
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD}
+    depends_on:
+      - database
+    networks:
+      - spring-network
+
+
+
   phpmyadmin:
     depends_on:
       - database

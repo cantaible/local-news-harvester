@@ -22,6 +22,10 @@ import com.example.springboot3newsreader.repositories.ThumbnailTaskRepository;
 import com.rometools.rome.feed.synd.SyndEntry;
 import com.rometools.rome.feed.synd.SyndFeed;
 import com.rometools.rome.io.SyndFeedInput;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.springframework.beans.factory.annotation.Value;
 
 @Service
 public class RssIngestService {
@@ -33,12 +37,15 @@ public class RssIngestService {
   @Autowired
   private ThumbnailTaskRepository thumbnailTaskRepository;
 
+  @Value("${app.feature.thumbnail-task.enabled:true}")
+  private boolean thumbnailTaskEnabled;
+
   public List<NewsArticle> parseOnly(String rssUrl, String sourceName) throws Exception {
     return parseOnly(rssUrl, sourceName, null);
   }
 
   public List<NewsArticle> parseOnly(String rssUrl, String sourceName, NewsCategory category)
-    throws Exception {
+      throws Exception {
     System.out.println("[rss] parse start: " + rssUrl);
     // 这里复制 ingest 里的解析逻辑
     // 唯一区别：最后 return articles，不要 saveAll
@@ -65,17 +72,43 @@ public class RssIngestService {
 
       // 发布时间（无则用当前时间）
       String publishedAt = entry.getPublishedDate() != null
-        ? entry.getPublishedDate().toInstant().toString()
-        : Instant.now().toString();
+          ? entry.getPublishedDate().toInstant().toString()
+          : Instant.now().toString();
       a.setPublishedAt(publishedAt);
 
       // 抓取时间
       a.setScrapedAt(Instant.now().toString());
 
       // 摘要（最多 100 字符）
+      // 摘要与图片提取
+      String descriptionHtml = null;
       if (entry.getDescription() != null) {
-        String desc = entry.getDescription().getValue();
-        a.setSummary(desc.length() > 100 ? desc.substring(0, 100) : desc);
+        descriptionHtml = entry.getDescription().getValue();
+        // 保存完整 HTML 到 rawContent 供详情页展示
+        a.setRawContent(descriptionHtml);
+      }
+
+      String imgFromDesc = null;
+      if (descriptionHtml != null && !descriptionHtml.isEmpty()) {
+        try {
+          Document doc = Jsoup.parse(descriptionHtml);
+          // 1. 提取描述中的第一张图片
+          Element img = doc.selectFirst("img");
+          if (img != null) {
+            String src = img.attr("src");
+            if (src != null && !src.isEmpty()) {
+              imgFromDesc = src;
+            }
+          }
+          // 2. 清理 HTML 标签作为摘要
+          String cleanText = doc.text();
+          if (cleanText != null) {
+            a.setSummary(cleanText.length() > 200 ? cleanText.substring(0, 200) + "..." : cleanText);
+          }
+        } catch (Exception e) {
+          // 降级处理
+          a.setSummary(descriptionHtml.length() > 100 ? descriptionHtml.substring(0, 100) : descriptionHtml);
+        }
       }
 
       // 缩略图：优先使用条目图片，其次使用文章页面 OG/Twitter 图
@@ -88,10 +121,13 @@ public class RssIngestService {
           }
         }
       }
+      if (thumbnailUrl == null && imgFromDesc != null) {
+        thumbnailUrl = imgFromDesc;
+      }
       if (thumbnailUrl == null && feed.getImage() != null) {
         thumbnailUrl = feed.getImage().getUrl();
       }
-      
+
       if (thumbnailUrl != null && shouldIgnoreRssThumbnail(rssUrl, sourceName, thumbnailUrl)) {
         thumbnailUrl = null;
       }
@@ -109,14 +145,13 @@ public class RssIngestService {
     return articles;
   }
 
-
   // 解析 RSS 并批量保存为 NewsArticle
   public List<NewsArticle> ingest(String rssUrl, String sourceName) throws Exception {
     return ingest(rssUrl, sourceName, null);
   }
 
   public List<NewsArticle> ingest(String rssUrl, String sourceName, NewsCategory category)
-    throws Exception {
+      throws Exception {
     System.out.println("[rss] ingest start: " + rssUrl);
     List<NewsArticle> articles = parseOnly(rssUrl, sourceName, category);
     System.out.println("[rss] parsed articles: " + articles.size());
@@ -124,29 +159,33 @@ public class RssIngestService {
     int before = articles.size();
     articles = newsArticleDedupeService.filterNewArticles(articles);
     System.out.println("[rss] after dedupe: " + articles.size()
-      + " (removed " + (before - articles.size()) + ")");
+        + " (removed " + (before - articles.size()) + ")");
     System.out.println("[rss] saving articles...");
     List<NewsArticle> saved = newsArticleRepository.saveAll(articles);
 
     List<ThumbnailTask> tasks = new ArrayList<>();
-    for (NewsArticle a : saved) {
-      if (a.getTumbnailURL() != null && !a.getTumbnailURL().isBlank()) {
-        continue;
+    if (thumbnailTaskEnabled) {
+      for (NewsArticle a : saved) {
+        if (a.getTumbnailURL() != null && !a.getTumbnailURL().isBlank()) {
+          continue;
+        }
+        ThumbnailTask task = new ThumbnailTask();
+        task.setArticleId(a.getId());
+        task.setArticleUrl(a.getSourceURL());
+        task.setStatus("WAITING");
+        task.setAttempts(0);
+        task.setCreatedAt(LocalDateTime.now());
+        task.setUpdatedAt(LocalDateTime.now());
+        tasks.add(task);
       }
-      ThumbnailTask task = new ThumbnailTask();
-      task.setArticleId(a.getId());
-      task.setArticleUrl(a.getSourceURL());
-      task.setStatus("WAITING");
-      task.setAttempts(0);
-      task.setCreatedAt(LocalDateTime.now());
-      task.setUpdatedAt(LocalDateTime.now());
-      tasks.add(task);
-    }
-    if (!tasks.isEmpty()) {
-      System.out.println("[rss] creating thumbnail tasks: " + tasks.size());
-      thumbnailTaskRepository.saveAll(tasks);
+      if (!tasks.isEmpty()) {
+        System.out.println("[rss] creating thumbnail tasks: " + tasks.size());
+        thumbnailTaskRepository.saveAll(tasks);
+      } else {
+        System.out.println("[rss] no thumbnail tasks created");
+      }
     } else {
-      System.out.println("[rss] no thumbnail tasks created");
+      System.out.println("[rss] skipping thumbnail tasks (disabled by config)");
     }
 
     return saved;
@@ -204,5 +243,4 @@ public class RssIngestService {
 
   // fetchOgImage 已迁移到异步补图任务中，这里不再同步抓取
 
-  
 }

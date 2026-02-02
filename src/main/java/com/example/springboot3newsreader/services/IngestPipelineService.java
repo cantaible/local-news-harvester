@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import com.example.springboot3newsreader.models.FeedItem;
 import com.example.springboot3newsreader.models.NewsArticle;
 import com.example.springboot3newsreader.models.NewsCategory;
+import org.springframework.beans.factory.annotation.Value;
 
 @Service
 public class IngestPipelineService {
@@ -18,6 +19,9 @@ public class IngestPipelineService {
   private RssIngestService rssIngestService;
   @Autowired
   private WebIngestService webIngestService;
+
+  @Value("${app.feature.web-ingest.enabled:true}")
+  private boolean webIngestEnabled;
 
   public List<NewsArticle> ingestFeed(FeedItem feed) throws Exception {
     if (feed == null || feed.getSourceType() == null) {
@@ -32,6 +36,10 @@ public class IngestPipelineService {
       return rssIngestService.ingest(feed.getUrl(), feed.getName(), category);
     }
     if ("WEB".equals(type)) {
+      if (!webIngestEnabled) {
+        System.out.println("Skipping WEB feed ingestion (disabled by config): " + feed.getName());
+        return new ArrayList<>();
+      }
       return webIngestService.ingest(feed.getUrl(), feed.getName(), category);
     }
     return new ArrayList<>();

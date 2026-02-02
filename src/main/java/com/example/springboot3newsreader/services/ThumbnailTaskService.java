@@ -14,6 +14,7 @@ import com.example.springboot3newsreader.models.ThumbnailTask;
 import com.example.springboot3newsreader.repositories.NewsArticleRepository;
 import com.example.springboot3newsreader.repositories.ThumbnailTaskRepository;
 import com.example.springboot3newsreader.services.webadapters.WebAdapter;
+import org.springframework.beans.factory.annotation.Value;
 
 @Service
 public class ThumbnailTaskService {
@@ -38,14 +39,20 @@ public class ThumbnailTaskService {
   @Autowired
   private List<WebAdapter> webAdapters;
 
+  @Value("${app.feature.thumbnail-task.enabled:true}")
+  private boolean thumbnailTaskEnabled;
+
   // 定时任务：周期性扫描可执行任务并处理
   @Scheduled(fixedDelay = 15000)
   public void processTasks() {
+    if (!thumbnailTaskEnabled) {
+      return;
+    }
     // 1) 只取可执行状态 + 到期的任务
     List<ThumbnailTask> tasks = thumbnailTaskRepository.findReadyTasks(
-      List.of(STATUS_WAITING, STATUS_FAILED),
-      LocalDateTime.now(),
-      PageRequest.of(0, BATCH_SIZE));
+        List.of(STATUS_WAITING, STATUS_FAILED),
+        LocalDateTime.now(),
+        PageRequest.of(0, BATCH_SIZE));
     // 2) 逐条处理（避免一个任务异常导致整个批次中断）
     for (ThumbnailTask task : tasks) {
       processSingleTask(task.getId());
@@ -101,8 +108,8 @@ public class ThumbnailTaskService {
 
       // 7) 获取文章 URL（优先任务内缓存的 URL）
       String url = task.getArticleUrl() != null && !task.getArticleUrl().isBlank()
-        ? task.getArticleUrl()
-        : article.getSourceURL();
+          ? task.getArticleUrl()
+          : article.getSourceURL();
       if (url == null || url.isBlank()) {
         failTask(task, "missing_article_url");
         return;
