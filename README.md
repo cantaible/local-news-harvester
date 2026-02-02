@@ -116,3 +116,18 @@ curl -X POST http://150.158.113.98:9090/api/newsarticles/search \
   }'
 ```
 
+### 5. (可选) 配置公网 HTTPS 访问 (Cpolar)
+如果需要通过公网 HTTPS 访问，可以使用 cpolar 进行内网穿透。
+
+```bash
+# 1. 配置 Token
+cpolar authtoken Nzk3ODJlMTItMTQwNi00ZjIyLWIxZGUtMGI4ODVkMzYzYTU1
+
+# 2. 清理旧进程
+pkill cpolar
+
+# 3. 后台启动服务 (映射本地 9090 端口)
+nohup cpolar http 9090 > cpolar.log 2>&1 &
+```
+启动后，查看 `cpolar.log` 获取生成的公网 HTTPS 地址。
+
