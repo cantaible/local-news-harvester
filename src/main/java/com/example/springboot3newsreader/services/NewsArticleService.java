@@ -119,6 +119,13 @@ public class NewsArticleService {
       sort = Sort.by(Sort.Direction.ASC, "publishedAt");
     }
 
-    return newsArticleRepository.findAll(spec, sort);
+    List<NewsArticle> results = newsArticleRepository.findAll(spec, sort);
+
+    // Optimize payload: set rawContent to null if not requested
+    if (!request.isIncludeContent()) {
+      results.forEach(a -> a.setRawContent(null));
+    }
+
+    return results;
   }
 }

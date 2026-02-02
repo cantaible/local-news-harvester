@@ -12,4 +12,5 @@ public class NewsArticleSearchRequest {
     private String startDate; // yyyy-MM-dd
     private String endDate; // yyyy-MM-dd
     private String sortOrder; // latest, oldest
+    private boolean includeContent = false; // default false
 }

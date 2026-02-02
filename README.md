@@ -65,7 +65,7 @@ Flutter 默认会请求 `http://localhost:8080` 的 API（见 `flutter_news_appl
 | POST | `/feeds/preview` | 预览 Web 类型新闻源 |
 | POST | `/admin/clear` | 清空业务表 |
 | POST | `/admin/seed-rss` | 批量导入内置 RSS 源 |
-| POST | `/api/newsarticles/search` | 高级搜索（Keyword, Sources, Data, Tags） |
+| POST | `/api/newsarticles/search` | 高级搜索 (Keyword, Sources, Date, Tags, includeContent) |
 | GET | `/api/image?url=...` | 图片代理 |
 
 ## 云服务器部署 (Docker)
@@ -112,9 +112,11 @@ curl -X POST http://150.158.113.98:9090/api/newsarticles/search \
     "tags": ["deep learning"],
     "startDate": "2024-01-01",
     "endDate": "2026-12-31",
-    "sortOrder": "latest"
+    "sortOrder": "latest",
+    "includeContent": false
   }'
 ```
+> **提示**：`includeContent` 默认为 `false`，即不返回大段 HTML 正文。如需详情页展示，请设为 `true`。
 
 ### 5. (可选) 配置公网 HTTPS 访问 (Cpolar)
 如果需要通过公网 HTTPS 访问，可以使用 cpolar 进行内网穿透。
