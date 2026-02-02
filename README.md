@@ -100,3 +100,19 @@ docker compose up -d --build
 
 > **注意**：前端代码 (`flutter_news_application/`) 在 Docker 构建过程中会被自动忽略，不会影响服务器构建速度。
 
+### 4. 接口测试示例
+部署完成后，可以使用以下命令测试高级搜索接口：
+```bash
+curl -X POST http://150.158.113.98:9090/api/newsarticles/search \
+  -H "Content-Type: application/json" \
+  -d '{
+    "keyword": "AI",
+    "category": "AI",
+    "sources": ["TechCrunch", "Google官方博客"],
+    "tags": ["deep learning"],
+    "startDate": "2024-01-01",
+    "endDate": "2026-12-31",
+    "sortOrder": "latest"
+  }'
+```
+
