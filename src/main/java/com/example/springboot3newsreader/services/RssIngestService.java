@@ -26,6 +26,9 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.springframework.beans.factory.annotation.Value;
+import java.net.HttpURLConnection;
+import com.example.springboot3newsreader.repositories.FeedItemRepository;
+import com.example.springboot3newsreader.models.FeedItem;
 
 @Service
 public class RssIngestService {
@@ -36,6 +39,8 @@ public class RssIngestService {
   private NewsArticleDedupeService newsArticleDedupeService;
   @Autowired
   private ThumbnailTaskRepository thumbnailTaskRepository;
+  @Autowired
+  private FeedItemRepository feedItemRepository;
 
   @Value("${app.feature.thumbnail-task.enabled:true}")
   private boolean thumbnailTaskEnabled;
@@ -145,17 +150,64 @@ public class RssIngestService {
     return articles;
   }
 
-  // 解析 RSS 并批量保存为 NewsArticle
-  public List<NewsArticle> ingest(String rssUrl, String sourceName) throws Exception {
-    return ingest(rssUrl, sourceName, null);
+  // 新增：支持 Conditional GET 的入口
+  public List<NewsArticle> ingest(FeedItem feedItem) throws Exception {
+    System.out.println("[rss] ingest start (conditional): " + feedItem.getUrl());
+
+    // 1. 建立连接
+    URL url = new URL(feedItem.getUrl());
+    HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+    connection.setConnectTimeout(5000);
+    connection.setReadTimeout(10000);
+
+    // 2. 设置缓存头
+    if (feedItem.getEtag() != null) {
+      connection.setRequestProperty("If-None-Match", feedItem.getEtag());
+    }
+    if (feedItem.getLastModified() != null) {
+      connection.setRequestProperty("If-Modified-Since", feedItem.getLastModified());
+    }
+
+    // 3. 发起请求
+    int responseCode = connection.getResponseCode();
+    if (responseCode == 304) {
+      System.out.println("[rss] 304 Not Modified, skipping: " + feedItem.getName());
+      return new ArrayList<>();
+    }
+
+    // 4. 解析内容 (200 OK)
+    // 更新缓存头到数据库 (稍后保存)
+    String newEtag = connection.getHeaderField("ETag");
+    String newLastModified = connection.getHeaderField("Last-Modified");
+
+    boolean headerChanged = false;
+    if (newEtag != null) {
+      feedItem.setEtag(newEtag);
+      headerChanged = true;
+    }
+    if (newLastModified != null) {
+      feedItem.setLastModified(newLastModified);
+      headerChanged = true;
+    }
+    if (headerChanged) {
+      feedItemRepository.save(feedItem);
+    }
+
+    InputStream input = connection.getInputStream();
+    String xml = readToString(input);
+    xml = stripDoctype(xml);
+    SyndFeedInput inputFeed = new SyndFeedInput();
+    SyndFeed feed = inputFeed.build(new StringReader(xml));
+
+    List<NewsArticle> articles = parseSyndFeed(feed, feedItem.getName(), feedItem.getCategory());
+
+    // 其余逻辑复用旧的 ingest 流程 (去重、保存...)
+    return saveParsedArticles(articles);
   }
 
-  public List<NewsArticle> ingest(String rssUrl, String sourceName, NewsCategory category)
-      throws Exception {
-    System.out.println("[rss] ingest start: " + rssUrl);
-    List<NewsArticle> articles = parseOnly(rssUrl, sourceName, category);
+  // 抽取出来的公用保存逻辑
+  private List<NewsArticle> saveParsedArticles(List<NewsArticle> articles) {
     System.out.println("[rss] parsed articles: " + articles.size());
-    // 批量写入数据库
     int before = articles.size();
     articles = newsArticleDedupeService.filterNewArticles(articles);
     System.out.println("[rss] after dedupe: " + articles.size()
@@ -187,8 +239,90 @@ public class RssIngestService {
     } else {
       System.out.println("[rss] skipping thumbnail tasks (disabled by config)");
     }
-
     return saved;
+  }
+
+  // 将 parseOnly 的核心逻辑抽取出来 (原 parseOnly 需要保留以兼容旧代码，或者改写)
+  private List<NewsArticle> parseSyndFeed(SyndFeed feed, String sourceName, NewsCategory category) {
+    List<NewsArticle> articles = new ArrayList<>();
+    System.out.println("[rss] entries: " + feed.getEntries().size());
+
+    for (SyndEntry entry : feed.getEntries()) {
+      NewsArticle a = new NewsArticle();
+      a.setTitle(entry.getTitle());
+      a.setSourceURL(entry.getLink());
+      a.setSourceName(sourceName);
+
+      String publishedAt = entry.getPublishedDate() != null
+          ? entry.getPublishedDate().toInstant().toString()
+          : Instant.now().toString();
+      a.setPublishedAt(publishedAt);
+      a.setScrapedAt(Instant.now().toString());
+
+      String descriptionHtml = null;
+      if (entry.getDescription() != null) {
+        descriptionHtml = entry.getDescription().getValue();
+        a.setRawContent(descriptionHtml);
+      }
+
+      String imgFromDesc = null;
+      if (descriptionHtml != null && !descriptionHtml.isEmpty()) {
+        try {
+          Document doc = Jsoup.parse(descriptionHtml);
+          Element img = doc.selectFirst("img");
+          if (img != null) {
+            String src = img.attr("src");
+            if (src != null && !src.isEmpty()) {
+              imgFromDesc = src;
+            }
+          }
+          String cleanText = doc.text();
+          if (cleanText != null) {
+            a.setSummary(cleanText.length() > 200 ? cleanText.substring(0, 200) + "..." : cleanText);
+          }
+        } catch (Exception e) {
+          a.setSummary(descriptionHtml.length() > 100 ? descriptionHtml.substring(0, 100) : descriptionHtml);
+        }
+      }
+
+      String thumbnailUrl = null;
+      if (entry.getEnclosures() != null) {
+        for (var enclosure : entry.getEnclosures()) {
+          if (enclosure.getType() != null && enclosure.getType().startsWith("image/")) {
+            thumbnailUrl = enclosure.getUrl();
+            break;
+          }
+        }
+      }
+      if (thumbnailUrl == null && imgFromDesc != null) {
+        thumbnailUrl = imgFromDesc;
+      }
+      if (thumbnailUrl == null && feed.getImage() != null) {
+        thumbnailUrl = feed.getImage().getUrl();
+      }
+
+      if (thumbnailUrl != null && shouldIgnoreRssThumbnail(null, sourceName, thumbnailUrl)) {
+        thumbnailUrl = null;
+      }
+
+      if (thumbnailUrl != null) {
+        a.setTumbnailURL(thumbnailUrl);
+      }
+      if (category != null) {
+        a.setCategory(category);
+      }
+      articles.add(a);
+    }
+    return articles;
+  }
+
+  // 兼容旧接口，但不推荐使用 (无法利用 header 缓存)
+  public List<NewsArticle> ingest(String rssUrl, String sourceName, NewsCategory category)
+      throws Exception {
+    // ... 简单的回退逻辑，或者直接调用上面的 parseOnly 然后 saveParsedArticles ...
+    // 为了简单起见，这里直接复用 parseOnly + saveParsedArticles
+    List<NewsArticle> articles = parseOnly(rssUrl, sourceName, category);
+    return saveParsedArticles(articles);
   }
 
   // 异步版本：不阻塞调用方
@@ -196,7 +330,7 @@ public class RssIngestService {
   public void ingestAsync(String rssUrl, String sourceName) {
     try {
       System.out.println("[rss] ingest async start: " + rssUrl);
-      List<NewsArticle> saved = ingest(rssUrl, sourceName);
+      List<NewsArticle> saved = ingest(rssUrl, sourceName, null);
       System.out.println("[rss] ingest async done, saved: " + saved.size());
     } catch (Exception e) {
       System.out.println("[rss] ingest async failed: " + rssUrl);

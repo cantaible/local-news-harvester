@@ -15,7 +15,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class FeedItem {
-  
+
   @Id
   @GeneratedValue
   Long id;
@@ -33,5 +33,8 @@ public class FeedItem {
   LocalDateTime createdAt;
 
   LocalDateTime updatedAt;
-  
+
+  String etag;
+  String lastModified;
+
 }

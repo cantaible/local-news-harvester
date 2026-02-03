@@ -33,7 +33,8 @@ public class IngestPipelineService {
       category = NewsCategory.UNCATEGORIZED;
     }
     if ("RSS".equals(type)) {
-      return rssIngestService.ingest(feed.getUrl(), feed.getName(), category);
+      // Use logic with Etag/Last-Modified support
+      return rssIngestService.ingest(feed);
     }
     if ("WEB".equals(type)) {
       if (!webIngestEnabled) {

@@ -60,7 +60,11 @@ public class NewsArticleService {
       }
     }
     // 2) 走统一 ingest pipeline（与 feeds/new 一致）
-    return ingestPipelineService.ingestAll(feeds);
+    // 2) 走统一 ingest pipeline（与 feeds/new 一致）
+    List<NewsArticle> results = ingestPipelineService.ingestAll(feeds);
+    // 默认不返回大内容，节省流量
+    results.forEach(a -> a.setRawContent(null));
+    return results;
   }
 
   public List<NewsArticle> search(NewsArticleSearchRequest request) {
