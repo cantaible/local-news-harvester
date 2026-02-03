@@ -10,6 +10,8 @@ import org.springframework.stereotype.Service;
 import com.example.springboot3newsreader.models.FeedItem;
 import com.example.springboot3newsreader.models.NewsArticle;
 import com.example.springboot3newsreader.models.NewsCategory;
+import java.util.Collections;
+import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
 
 @Service
@@ -47,18 +49,21 @@ public class IngestPipelineService {
   }
 
   public List<NewsArticle> ingestAll(List<FeedItem> feeds) {
-    List<NewsArticle> all = new ArrayList<>();
-    if (feeds == null) {
-      return all;
+    if (feeds == null || feeds.isEmpty()) {
+      return new ArrayList<>();
     }
-    for (FeedItem feed : feeds) {
-      try {
-        all.addAll(ingestFeed(feed));
-      } catch (Exception e) {
-        // ignore single feed failure
-      }
-    }
-    return all;
+    // 使用并行流加速抓取 (多线程并发执行)
+    // 注意：ArrayList 非线程安全，使用 Collections.synchronizedList 或 collect
+    return feeds.parallelStream()
+        .flatMap(feed -> {
+          try {
+            return ingestFeed(feed).stream();
+          } catch (Exception e) {
+            // ignore failure
+            return java.util.stream.Stream.empty();
+          }
+        })
+        .collect(Collectors.toList());
   }
 
   @Async
