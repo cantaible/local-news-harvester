@@ -39,7 +39,7 @@ public class CategoryController {
     NewsCategory c = NewsCategory.fromKey(category);
     if (c == null) {
       return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-        .body(new ApiResponse<>(400, "invalid category", null));
+          .body(new ApiResponse<>(400, "invalid category", null));
     }
     List<NewsArticle> articles = newsArticleRepository.findByCategoryOrderByIdDesc(c);
     return ResponseEntity.ok(new ApiResponse<>(200, "ok", articles));

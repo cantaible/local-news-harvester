@@ -63,13 +63,15 @@ class _NewsArticlesPageState extends State<NewsArticlesPage> {
     // await Future<void>.delayed(const Duration(seconds: 2));
     final HttpClient client = HttpClient();
     try {
-      final Uri uri = Uri.parse(
-        '${AppConfig.baseUrl}/api/categories/${widget.categoryKey}/newsarticles',
+      final Uri uri = Uri.parse('${AppConfig.baseUrl}/api/newsarticles/search');
+      debugPrint('Fetching articles via search: $uri');
+      final HttpClientRequest request = await client.postUrl(uri);
+      request.headers.set(HttpHeaders.contentTypeHeader, "application/json");
+      request.write(jsonEncode({"category": widget.categoryKey}));
+
+      final HttpClientResponse response = await request.close().timeout(
+        const Duration(seconds: 10),
       );
-      debugPrint('Fetching articles: $uri');
-      final HttpClientRequest request = await client.getUrl(uri);
-      final HttpClientResponse response =
-          await request.close().timeout(const Duration(seconds: 10));
       final String body = await response.transform(utf8.decoder).join();
       if (response.statusCode != 200) {
         debugPrint('Fetch failed: ${response.statusCode} body=$body');
@@ -115,83 +117,82 @@ class _NewsArticlesPageState extends State<NewsArticlesPage> {
   @override
   Widget build(BuildContext context) {
     final List<NewsArticle> visibleArticles = _applyFilters(_articles);
-    // 页面骨架：上方筛选区、下方列表区
+    // 使用 CustomScrollView 实现整体滚动，解决 FilterBar 展开后溢出的问题
     return Stack(
       children: [
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-          // 顶部筛选区：先接入组件，逻辑后续再加
-          NewsFilterBar(
-            // 当前筛选状态（由父组件传入）
-            state: _filterState,
-            // 可用来源列表（用于渲染来源筛选选项）
-            availableSources: _collectSources(_articles),
-            // 可用标签列表（用于渲染标签筛选选项）
-            availableTags: const <String>[],
-            // 筛选变更回调（后续在这里更新状态）
-            onChanged: (next) {
-              setState(() {
-                _filterState = next;
-              });
-            },
-          ),
-          const SizedBox(height: 16),
-          // 下方列表区：加载/错误/正常三种情况
-          Expanded(
-            child: () {
-              if (_isLoading) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (_errorMessage != null) {
-                // 有错误时显示错误文案
-                return Center(
+        CustomScrollView(
+          controller: _scrollController,
+          slivers: [
+            // 顶部筛选区
+            SliverPadding(
+              padding: const EdgeInsets.all(16),
+              sliver: SliverToBoxAdapter(
+                child: NewsFilterBar(
+                  state: _filterState,
+                  availableSources: _collectSources(_articles),
+                  availableTags: const <String>[],
+                  onChanged: (next) {
+                    setState(() {
+                      _filterState = next;
+                    });
+                  },
+                ),
+              ),
+            ),
+            // 列表内容区（加载/错误/空/列表）
+            if (_isLoading)
+              const SliverFillRemaining(
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_errorMessage != null)
+              SliverFillRemaining(
+                child: Center(
                   child: Text(
                     _errorMessage!,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                     textAlign: TextAlign.center,
                   ),
-                );
-              }
-              if (visibleArticles.isEmpty) {
-                return Center(
+                ),
+              )
+            else if (visibleArticles.isEmpty)
+              SliverFillRemaining(
+                child: Center(
                   child: Text(
                     '没有匹配的新闻',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
-                );
-              }
-              // 正常状态：渲染文章列表（瀑布流双列）
-              return MasonryGridView.count(
-                controller: _scrollController,
-                crossAxisCount: 2,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                itemCount: visibleArticles.length,
-                itemBuilder: (context, index) {
-                  return NewsCard(
-                    article: visibleArticles[index],
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => ArticleWebViewPage(
-                            url: visibleArticles[index].sourceUrl,
+                ),
+              )
+            else
+              SliverPadding(
+                // 底部留出 FAB 的空间
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 80),
+                sliver: SliverMasonryGrid.count(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  childCount: visibleArticles.length,
+                  itemBuilder: (context, index) {
+                    return NewsCard(
+                      article: visibleArticles[index],
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ArticleWebViewPage(
+                              url: visibleArticles[index].sourceUrl,
+                            ),
                           ),
-                        ),
-                      );
-                    },
-                  );
-                },
-              );
-            }(),
-          ),
-            ],
-          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+          ],
         ),
         Positioned(
           right: 16,
@@ -223,8 +224,7 @@ class _NewsArticlesPageState extends State<NewsArticlesPage> {
     final DateTimeRange? range = _filterState.selectedDateRange;
     for (final NewsArticle article in input) {
       if (keyword.isNotEmpty) {
-        final String text =
-            '${article.title} ${article.summary}'.toLowerCase();
+        final String text = '${article.title} ${article.summary}'.toLowerCase();
         if (!text.contains(keyword)) {
           continue;
         }
@@ -288,12 +288,14 @@ class _NewsArticlesPageState extends State<NewsArticlesPage> {
   Future<List<NewsArticle>> _fetchRefreshArticles() async {
     final HttpClient client = HttpClient();
     try {
-      final Uri uri =
-          Uri.parse('${AppConfig.baseUrl}/api/newsarticles/refresh');
+      final Uri uri = Uri.parse(
+        '${AppConfig.baseUrl}/api/newsarticles/refresh',
+      );
       debugPrint('Refreshing articles: $uri');
       final HttpClientRequest request = await client.getUrl(uri);
-      final HttpClientResponse response =
-          await request.close().timeout(const Duration(seconds: 10));
+      final HttpClientResponse response = await request.close().timeout(
+        const Duration(minutes: 2),
+      );
       final String body = await response.transform(utf8.decoder).join();
       if (response.statusCode != 200) {
         debugPrint('Refresh failed: ${response.statusCode} body=$body');
@@ -346,9 +348,9 @@ class _NewsArticlesPageState extends State<NewsArticlesPage> {
       });
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('刷新失败：$error')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('刷新失败：$error')));
       }
     } finally {
       if (mounted) {
@@ -358,5 +360,4 @@ class _NewsArticlesPageState extends State<NewsArticlesPage> {
       }
     }
   }
-
 }
