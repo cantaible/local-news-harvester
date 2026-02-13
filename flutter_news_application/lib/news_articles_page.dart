@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -32,6 +33,8 @@ class _NewsArticlesPageState extends State<NewsArticlesPage> {
   bool _isRefreshing = false;
   // 列表滚动控制器
   final ScrollController _scrollController = ScrollController();
+  Timer? _filterFetchDebounce;
+  int _activeFetchToken = 0;
 
   @override
   void initState() {
@@ -50,11 +53,13 @@ class _NewsArticlesPageState extends State<NewsArticlesPage> {
 
   @override
   void dispose() {
+    _filterFetchDebounce?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
 
   Future<void> _fetchArticles() async {
+    final int fetchToken = ++_activeFetchToken;
     // 开始请求：打开 loading
     setState(() {
       _isLoading = true;
@@ -67,7 +72,7 @@ class _NewsArticlesPageState extends State<NewsArticlesPage> {
       debugPrint('Fetching articles via search: $uri');
       final HttpClientRequest request = await client.postUrl(uri);
       request.headers.set(HttpHeaders.contentTypeHeader, "application/json");
-      request.write(jsonEncode({"category": widget.categoryKey}));
+      request.write(jsonEncode(_buildSearchRequestBody()));
 
       final HttpClientResponse response = await request.close().timeout(
         const Duration(seconds: 10),
@@ -92,12 +97,15 @@ class _NewsArticlesPageState extends State<NewsArticlesPage> {
       if (!mounted) {
         return;
       }
+      if (fetchToken != _activeFetchToken) {
+        return;
+      }
       setState(() {
         _articles = articles;
       });
     } catch (error) {
       debugPrint('Fetch exception: $error');
-      if (mounted) {
+      if (mounted && fetchToken == _activeFetchToken) {
         // 请求失败：记录错误消息，用于页面展示
         setState(() {
           _errorMessage = error.toString();
@@ -106,12 +114,57 @@ class _NewsArticlesPageState extends State<NewsArticlesPage> {
     } finally {
       // 不管成功失败，都关闭 loading
       client.close();
-      if (mounted) {
+      if (mounted && fetchToken == _activeFetchToken) {
         setState(() {
           _isLoading = false;
         });
       }
     }
+  }
+
+  Map<String, dynamic> _buildSearchRequestBody() {
+    final String keyword = _filterState.keyword.trim();
+    final List<String> sources = _filterState.selectedSources.toList()..sort();
+    final List<String> tags = _filterState.selectedTags.toList()..sort();
+    final Map<String, dynamic> payload = <String, dynamic>{
+      'category': widget.categoryKey,
+      'sortOrder': _filterState.sortOrder == SortOrder.latest
+          ? 'latest'
+          : 'oldest',
+      'includeContent': false,
+    };
+
+    if (keyword.isNotEmpty) {
+      payload['keyword'] = keyword;
+    }
+    if (sources.isNotEmpty) {
+      payload['sources'] = sources;
+    }
+    if (tags.isNotEmpty) {
+      payload['tags'] = tags;
+    }
+
+    final DateTimeRange? range = _filterState.selectedDateRange;
+    if (range != null) {
+      payload['startDateTime'] = _toUtcIso8601Z(range.start);
+      payload['endDateTime'] = _toUtcIso8601Z(range.end);
+    }
+
+    return payload;
+  }
+
+  String _toUtcIso8601Z(DateTime localDateTime) {
+    return localDateTime.toUtc().toIso8601String();
+  }
+
+  void _scheduleFetchForFilterChange() {
+    _filterFetchDebounce?.cancel();
+    _filterFetchDebounce = Timer(const Duration(milliseconds: 350), () {
+      if (!mounted) {
+        return;
+      }
+      _fetchArticles();
+    });
   }
 
   @override
@@ -135,6 +188,7 @@ class _NewsArticlesPageState extends State<NewsArticlesPage> {
                     setState(() {
                       _filterState = next;
                     });
+                    _scheduleFetchForFilterChange();
                   },
                 ),
               ),
@@ -247,20 +301,10 @@ class _NewsArticlesPageState extends State<NewsArticlesPage> {
       }
       if (range != null) {
         final DateTime date = article.publishedAt.toLocal();
-        final DateTime start = DateTime(
-          range.start.year,
-          range.start.month,
-          range.start.day,
-        );
-        final DateTime end = DateTime(
-          range.end.year,
-          range.end.month,
-          range.end.day,
-          23,
-          59,
-          59,
-        );
-        if (date.isBefore(start) || date.isAfter(end)) {
+        final DateTime start = range.start.toLocal();
+        final DateTime end = range.end.toLocal();
+        // 与后端保持一致：右开区间 [start, end)
+        if (date.isBefore(start) || !date.isBefore(end)) {
           continue;
         }
       }
@@ -324,14 +368,6 @@ class _NewsArticlesPageState extends State<NewsArticlesPage> {
       map[article.id] = article;
     }
     return map.values.toList();
-  }
-
-  void _scrollToTop() {
-    _scrollController.animateTo(
-      0,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOut,
-    );
   }
 
   Future<void> _refreshArticles() async {

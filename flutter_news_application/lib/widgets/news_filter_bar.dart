@@ -121,18 +121,16 @@ class _NewsFilterBarState extends State<NewsFilterBar> {
                   Text(
                     'Filters',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w600,
-                        ),
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                   if (summary.isNotEmpty) ...[
                     const SizedBox(height: 2),
                     Text(
                       summary,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant,
-                          ),
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ],
@@ -177,8 +175,9 @@ class _NewsFilterBarState extends State<NewsFilterBar> {
 
   Widget _buildDateAndSort(BuildContext context, NewsFilterState state) {
     final DateTimeRange? range = state.selectedDateRange;
-    final String dateLabel =
-        range == null ? 'Any date' : _formatDateRange(range);
+    final String dateLabel = range == null
+        ? 'Any date time'
+        : _formatDateRange(range);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -186,13 +185,10 @@ class _NewsFilterBarState extends State<NewsFilterBar> {
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
-            // 选择日期范围
-            onPressed: () => _pickDateRange(context, state),
+            // 选择日期+时间范围（分钟级）
+            onPressed: () => _pickDateTimeRange(state),
             icon: const Icon(Icons.event_outlined),
-            label: Text(
-              dateLabel,
-              overflow: TextOverflow.ellipsis,
-            ),
+            label: Text(dateLabel, overflow: TextOverflow.ellipsis),
           ),
         ),
         const SizedBox(height: 8),
@@ -205,9 +201,7 @@ class _NewsFilterBarState extends State<NewsFilterBar> {
               // 最新优先
               onSelected: (selected) {
                 if (selected) {
-                  widget.onChanged(
-                    state.copyWith(sortOrder: SortOrder.latest),
-                  );
+                  widget.onChanged(state.copyWith(sortOrder: SortOrder.latest));
                 }
               },
             ),
@@ -217,9 +211,7 @@ class _NewsFilterBarState extends State<NewsFilterBar> {
               // 最早优先
               onSelected: (selected) {
                 if (selected) {
-                  widget.onChanged(
-                    state.copyWith(sortOrder: SortOrder.oldest),
-                  );
+                  widget.onChanged(state.copyWith(sortOrder: SortOrder.oldest));
                 }
               },
             ),
@@ -232,9 +224,9 @@ class _NewsFilterBarState extends State<NewsFilterBar> {
   Widget _buildSectionTitle(BuildContext context, String text) {
     return Text(
       text,
-      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
+      style: Theme.of(
+        context,
+      ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
     );
   }
 
@@ -244,8 +236,8 @@ class _NewsFilterBarState extends State<NewsFilterBar> {
       return Text(
         'No sources available',
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
       );
     }
 
@@ -278,8 +270,8 @@ class _NewsFilterBarState extends State<NewsFilterBar> {
       return Text(
         'No tags available',
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
       );
     }
 
@@ -306,27 +298,107 @@ class _NewsFilterBarState extends State<NewsFilterBar> {
     );
   }
 
-  Future<void> _pickDateRange(
-    BuildContext context,
-    NewsFilterState state,
-  ) async {
-    // 日期范围选择器：限制可选范围
+  Future<void> _pickDateTimeRange(NewsFilterState state) async {
     final DateTime now = DateTime.now();
-    final DateTimeRange initialRange = state.selectedDateRange ??
-        DateTimeRange(
-          start: now.subtract(const Duration(days: 7)),
-          end: now,
-        );
+    final DateTimeRange fallbackRange = DateTimeRange(
+      start: now.subtract(const Duration(days: 7)),
+      end: now,
+    );
+    final DateTimeRange initialRange = state.selectedDateRange ?? fallbackRange;
+    final DateTimeRange initialDateRange = DateTimeRange(
+      start: DateTime(
+        initialRange.start.year,
+        initialRange.start.month,
+        initialRange.start.day,
+      ),
+      end: DateTime(
+        initialRange.end.year,
+        initialRange.end.month,
+        initialRange.end.day,
+      ),
+    );
+
     final DateTimeRange? picked = await showDateRangePicker(
       context: context,
       firstDate: DateTime(2010),
       lastDate: now.add(const Duration(days: 365)),
-      initialDateRange: initialRange,
+      initialDateRange: initialDateRange,
     );
     if (picked == null) {
       return;
     }
-    widget.onChanged(state.copyWith(selectedDateRange: picked));
+    if (!mounted) {
+      return;
+    }
+
+    final TimeOfDay? startTime = await _pickTime(
+      context,
+      initialRange.start,
+      helpText: 'Select start time',
+    );
+    if (startTime == null) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+    final TimeOfDay? endTime = await _pickTime(
+      context,
+      initialRange.end,
+      helpText: 'Select end time',
+    );
+    if (endTime == null) {
+      return;
+    }
+    if (!mounted) {
+      return;
+    }
+
+    final DateTime start = DateTime(
+      picked.start.year,
+      picked.start.month,
+      picked.start.day,
+      startTime.hour,
+      startTime.minute,
+    );
+    final DateTime end = DateTime(
+      picked.end.year,
+      picked.end.month,
+      picked.end.day,
+      endTime.hour,
+      endTime.minute,
+    );
+
+    if (!start.isBefore(end)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('End time must be later than start time')),
+      );
+      return;
+    }
+
+    widget.onChanged(
+      state.copyWith(
+        selectedDateRange: DateTimeRange(start: start, end: end),
+      ),
+    );
+  }
+
+  Future<TimeOfDay?> _pickTime(
+    BuildContext context,
+    DateTime initialDateTime, {
+    required String helpText,
+  }) {
+    return showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initialDateTime),
+      helpText: helpText,
+      builder: (BuildContext context, Widget? child) {
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
+    );
   }
 
   void _handleClear() {
@@ -342,12 +414,13 @@ class _NewsFilterBarState extends State<NewsFilterBar> {
   }
 
   String _formatDate(DateTime dateTime) {
-    // 简单的 yyyy-MM-dd 格式
     final DateTime local = dateTime.toLocal();
     final String year = local.year.toString().padLeft(4, '0');
     final String month = local.month.toString().padLeft(2, '0');
     final String day = local.day.toString().padLeft(2, '0');
-    return '$year-$month-$day';
+    final String hour = local.hour.toString().padLeft(2, '0');
+    final String minute = local.minute.toString().padLeft(2, '0');
+    return '$year-$month-$day $hour:$minute';
   }
 
   String _formatDateRange(DateTimeRange range) {

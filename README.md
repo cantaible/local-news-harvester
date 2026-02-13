@@ -65,7 +65,7 @@ Flutter 默认会请求 `http://localhost:8080` 的 API（见 `flutter_news_appl
 | POST | `/feeds/preview` | 预览 Web 类型新闻源 |
 | POST | `/admin/clear` | 清空业务表 |
 | POST | `/admin/seed-rss` | 批量导入内置 RSS 源 |
-| POST | `/api/newsarticles/search` | 高级搜索 (Keyword, Sources, Date, Tags, includeContent) |
+| POST | `/api/newsarticles/search` | 高级搜索 (Keyword, Sources, DateTime UTC, Tags, includeContent) |
 | GET | `/api/image?url=...` | 图片代理 |
 
 ## 云服务器部署 (Docker)
@@ -101,7 +101,7 @@ docker compose up -d --build
 > **注意**：前端代码 (`flutter_news_application/`) 在 Docker 构建过程中会被自动忽略，不会影响服务器构建速度。
 
 ### 4. 接口测试示例
-部署完成后，可以使用以下命令测试高级搜索接口：
+部署完成后，可以使用以下命令测试高级搜索接口（所有时间参数均为 UTC）：
 ```bash
 curl -X POST http://150.158.113.98:9090/api/newsarticles/search \
   -H "Content-Type: application/json" \
@@ -110,13 +110,29 @@ curl -X POST http://150.158.113.98:9090/api/newsarticles/search \
     "category": "AI",
     "sources": ["TechCrunch", "Google官方博客"],
     "tags": ["deep learning"],
-    "startDate": "2024-01-01",
-    "endDate": "2026-12-31",
+    "startDateTime": "2026-02-13T02:35:00Z",
+    "endDateTime": "2026-02-13T03:35:00Z",
     "sortOrder": "latest",
     "includeContent": false
   }'
 ```
 > **提示**：`includeContent` 默认为 `false`，即不返回大段 HTML 正文。如需详情页展示，请设为 `true`。
+>
+> **时间筛选语义（固定）**：
+> - `publishedAt >= startDateTime`
+> - `publishedAt < endDateTime`（右开区间）
+> - 时间格式必须是 ISO 8601 UTC（必须带 `Z`），例如 `2026-02-13T02:35:00Z`
+> - Flutter 客户端中用户看到/选择的是本地时间（如北京时间），发送请求前会自动转换为 UTC
+
+无效时间示例（会返回 HTTP 400）：
+```bash
+curl -X POST http://150.158.113.98:9090/api/newsarticles/search \
+  -H "Content-Type: application/json" \
+  -d '{
+    "startDateTime": "2026-02-13T02:35:00",
+    "endDateTime": "2026-02-13T03:35:00Z"
+  }'
+```
 
 #### 刷新更多新闻
 使用以下命令手动触发 RSS 源的刷新：
@@ -145,4 +161,3 @@ pkill cpolar
 nohup cpolar http 9090 > cpolar.log 2>&1 &
 ```
 启动后，查看 `cpolar.log` 获取生成的公网 HTTPS 地址。
-

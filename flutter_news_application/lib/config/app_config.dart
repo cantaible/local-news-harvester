@@ -1,5 +1,5 @@
 class AppConfig {
   static String get baseUrl {
-    return 'https://5a9892d3.r8.cpolar.cn';
+    return 'http://150.158.113.98:9090';
   }
 }

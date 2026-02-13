@@ -1,8 +1,11 @@
 package com.example.springboot3newsreader.services;
 
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -68,6 +71,9 @@ public class NewsArticleService {
   }
 
   public List<NewsArticle> search(NewsArticleSearchRequest request) {
+    Instant startDateTime = parseUtcDateTimeOrNull(request.getStartDateTime(), "startDateTime");
+    Instant endDateTime = parseUtcDateTimeOrNull(request.getEndDateTime(), "endDateTime");
+
     Specification<NewsArticle> spec = (root, query, cb) -> {
       List<Predicate> predicates = new ArrayList<>();
 
@@ -103,18 +109,6 @@ public class NewsArticleService {
         predicates.add(cb.or(tagPredicates.toArray(new Predicate[0])));
       }
 
-      // 5. Date Range
-      if (request.getStartDate() != null && !request.getStartDate().isBlank()) {
-        // publishedAt is string (ISO 8601), direct compare works for YYYY-MM-DD
-        predicates.add(cb.greaterThanOrEqualTo(root.get("publishedAt"), request.getStartDate()));
-      }
-      if (request.getEndDate() != null && !request.getEndDate().isBlank()) {
-        // Add time 23:59:59 suffix or just compare string prefix depending on needs
-        // Simple string compare: "2023-01-01" < "2023-01-01T..."
-        // To be safe, compare with next day or suffix
-        predicates.add(cb.lessThanOrEqualTo(root.get("publishedAt"), request.getEndDate() + "T23:59:59"));
-      }
-
       return cb.and(predicates.toArray(new Predicate[0]));
     };
 
@@ -123,7 +117,9 @@ public class NewsArticleService {
       sort = Sort.by(Sort.Direction.ASC, "publishedAt");
     }
 
-    List<NewsArticle> results = newsArticleRepository.findAll(spec, sort);
+    List<NewsArticle> results = newsArticleRepository.findAll(spec, sort).stream()
+        .filter(a -> matchesDateTimeRange(a.getPublishedAt(), startDateTime, endDateTime))
+        .collect(Collectors.toList());
 
     // Optimize payload: set rawContent to null if not requested
     if (!request.isIncludeContent()) {
@@ -131,5 +127,44 @@ public class NewsArticleService {
     }
 
     return results;
+  }
+
+  private Instant parseUtcDateTimeOrNull(String rawValue, String fieldName) {
+    if (rawValue == null || rawValue.isBlank()) {
+      return null;
+    }
+    if (!rawValue.endsWith("Z")) {
+      throw new IllegalArgumentException(fieldName
+          + " must be an ISO 8601 UTC datetime with 'Z', e.g. 2026-02-13T02:35:00Z");
+    }
+    try {
+      return Instant.parse(rawValue);
+    } catch (DateTimeParseException ex) {
+      throw new IllegalArgumentException(fieldName
+          + " must be a valid ISO 8601 UTC datetime with 'Z', e.g. 2026-02-13T02:35:00Z");
+    }
+  }
+
+  private boolean matchesDateTimeRange(String publishedAt, Instant startDateTime, Instant endDateTime) {
+    if (startDateTime == null && endDateTime == null) {
+      return true;
+    }
+    if (publishedAt == null || publishedAt.isBlank()) {
+      return false;
+    }
+    final Instant publishedInstant;
+    try {
+      publishedInstant = Instant.parse(publishedAt);
+    } catch (DateTimeParseException ex) {
+      return false;
+    }
+
+    if (startDateTime != null && publishedInstant.isBefore(startDateTime)) {
+      return false;
+    }
+    if (endDateTime != null && !publishedInstant.isBefore(endDateTime)) {
+      return false;
+    }
+    return true;
   }
 }

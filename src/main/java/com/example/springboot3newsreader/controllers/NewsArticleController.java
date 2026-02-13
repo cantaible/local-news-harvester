@@ -20,6 +20,8 @@ import com.example.springboot3newsreader.models.NewsCategory;
 import com.example.springboot3newsreader.services.NewsArticleService;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import com.example.springboot3newsreader.models.dto.NewsArticleSearchRequest;
 
 @RestController
@@ -55,6 +57,21 @@ public class NewsArticleController {
   public ResponseEntity<?> searchArticles(@RequestBody NewsArticleSearchRequest request) {
     List<NewsArticle> results = newsArticleService.search(request);
     return ResponseEntity.ok(new ApiResponse<>(200, "ok", results));
+  }
+
+  @ExceptionHandler(IllegalArgumentException.class)
+  public ResponseEntity<?> handleIllegalArgument(IllegalArgumentException ex) {
+    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+        .body(new ApiResponse<>(400, ex.getMessage(), null));
+  }
+
+  @ExceptionHandler(HttpMessageNotReadableException.class)
+  public ResponseEntity<?> handleNotReadable(HttpMessageNotReadableException ex) {
+    String message = "Invalid request body. Only these fields are supported: "
+        + "category, keyword, sources, tags, startDateTime, endDateTime, sortOrder, includeContent. "
+        + "Datetime fields must be ISO 8601 UTC with 'Z', e.g. 2026-02-13T02:35:00Z.";
+    return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+        .body(new ApiResponse<>(400, message, null));
   }
 
   @PostMapping("/seed")
