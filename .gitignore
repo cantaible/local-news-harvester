@@ -51,4 +51,4 @@ pnpm-debug.log*
 
 .tencent_cloud
 /wewerss_development
-
+*.sql.gz
