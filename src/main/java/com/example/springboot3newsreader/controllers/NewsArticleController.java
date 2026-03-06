@@ -56,7 +56,7 @@ public class NewsArticleController {
   @PostMapping("/search")
   public ResponseEntity<?> searchArticles(@RequestBody NewsArticleSearchRequest request) {
     List<NewsArticle> results = newsArticleService.search(request);
-    return ResponseEntity.ok(new ApiResponse<>(200, "ok", results));
+    return ResponseEntity.ok(new ApiResponse<>(200, "ok", results, results.size()));
   }
 
   @ExceptionHandler(IllegalArgumentException.class)
