@@ -54,11 +54,16 @@ public class NewsArticleService {
   }
 
   public List<NewsArticle> refreshFromRssFeeds() {
-    // 1) 取所有 RSS/WEB 源
+    // 1) 取所有已启用的 RSS/WEB/TWITTER 源
     List<FeedItem> allFeeds = feedItemRepository.findAll();
     List<FeedItem> feeds = new ArrayList<>();
     for (FeedItem feed : allFeeds) {
-      if ("RSS".equals(feed.getSourceType()) || "WEB".equals(feed.getSourceType())) {
+      if (!Boolean.TRUE.equals(feed.getEnabled())) {
+        continue;
+      }
+      if ("RSS".equals(feed.getSourceType())
+          || "WEB".equals(feed.getSourceType())
+          || "TWITTER".equals(feed.getSourceType())) {
         feeds.add(feed);
       }
     }

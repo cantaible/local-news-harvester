@@ -38,6 +38,8 @@ public class FormController {
 
   @Value("${app.feature.web-ingest.enabled:true}")
   private boolean webIngestEnabled;
+  @Value("${app.feature.twitter-ingest.enabled:false}")
+  private boolean twitterIngestEnabled;
 
   @PostMapping("/feeds/new")
   public ResponseEntity<?> createFeedItem(FeedItem feedItem) {
@@ -66,16 +68,22 @@ public class FormController {
       return ResponseEntity.badRequest()
           .body(new ApiResponse<>(400, "sourceType should not be null!", null));
     }
-    if (!feedItem.getSourceType().equals("RSS") && !feedItem.getSourceType().equals("WEB")) {
-      System.out.println("[feeds/new] validation failed: sourceType must be RSS or WEB");
-      System.out.println("[feeds/new] validation failed: sourceType must be RSS or WEB");
+    if (!feedItem.getSourceType().equals("RSS")
+        && !feedItem.getSourceType().equals("WEB")
+        && !feedItem.getSourceType().equals("TWITTER")) {
+      System.out.println("[feeds/new] validation failed: sourceType must be RSS, WEB or TWITTER");
       return ResponseEntity.badRequest()
-          .body(new ApiResponse<>(400, "sourceType must be RSS or WEB!", null));
+          .body(new ApiResponse<>(400, "sourceType must be RSS, WEB or TWITTER!", null));
     }
     if ("WEB".equals(feedItem.getSourceType()) && !webIngestEnabled) {
       System.out.println("[feeds/new] validation failed: WEB source disabled by feature flag");
       return ResponseEntity.badRequest()
           .body(new ApiResponse<>(400, "WEB source type is currently disabled by configuration!", null));
+    }
+    if ("TWITTER".equals(feedItem.getSourceType()) && !twitterIngestEnabled) {
+      System.out.println("[feeds/new] validation failed: TWITTER source disabled by feature flag");
+      return ResponseEntity.badRequest()
+          .body(new ApiResponse<>(400, "TWITTER source type is currently disabled by configuration!", null));
     }
     if (feedItem.getEnabled() == null) {
       System.out.println("[feeds/new] validation failed: enabled is null");
@@ -89,6 +97,12 @@ public class FormController {
 
     String name = feedItem.getName().trim();
     String url = feedItem.getUrl().trim();
+    if ("TWITTER".equals(feedItem.getSourceType())
+        && !isValidTwitterProfileUrl(url)) {
+      System.out.println("[feeds/new] validation failed: twitter url is invalid");
+      return ResponseEntity.badRequest()
+          .body(new ApiResponse<>(400, "twitter url should look like https://x.com/{username}!", null));
+    }
     System.out.println("[feeds/new] normalized name=" + name + ", url=" + url);
     if (feedItemRepository.existsByNameAndUrl(name, url)) {
       System.out.println("[feeds/new] duplicate feed found, abort");
@@ -104,7 +118,7 @@ public class FormController {
     System.out.println("[feeds/new] saved id=" + saved.getId());
 
     System.out.println("[feeds/new] trigger ingest pipeline async");
-    ingestPipelineService.ingestFeedAsync(feedItem);
+    ingestPipelineService.ingestFeedAsync(saved);
     System.out.println("[feeds/new] response 201");
     return ResponseEntity.status(HttpStatus.CREATED)
         .body(new ApiResponse<>(200, "ok", saved));
@@ -143,6 +157,11 @@ public class FormController {
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
           .body(new ApiResponse<>(500, "preview failed", null));
     }
+  }
+
+  private boolean isValidTwitterProfileUrl(String url) {
+    String normalized = url == null ? "" : url.trim().toLowerCase();
+    return normalized.matches("^https?://(www\\.)?(x|twitter)\\.com/[^/?#]+/?$");
   }
 
   @PostMapping("/admin/clear")

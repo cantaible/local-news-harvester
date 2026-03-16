@@ -51,4 +51,6 @@ pnpm-debug.log*
 
 .tencent_cloud
 /wewerss_development
+__pycache__/
+*.pyc
 *.sql.gz

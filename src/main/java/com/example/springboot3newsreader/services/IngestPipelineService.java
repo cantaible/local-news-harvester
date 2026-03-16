@@ -10,7 +10,6 @@ import org.springframework.stereotype.Service;
 import com.example.springboot3newsreader.models.FeedItem;
 import com.example.springboot3newsreader.models.NewsArticle;
 import com.example.springboot3newsreader.models.NewsCategory;
-import java.util.Collections;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
 
@@ -21,9 +20,13 @@ public class IngestPipelineService {
   private RssIngestService rssIngestService;
   @Autowired
   private WebIngestService webIngestService;
+  @Autowired
+  private TwitterIngestService twitterIngestService;
 
   @Value("${app.feature.web-ingest.enabled:true}")
   private boolean webIngestEnabled;
+  @Value("${app.feature.twitter-ingest.enabled:false}")
+  private boolean twitterIngestEnabled;
 
   public List<NewsArticle> ingestFeed(FeedItem feed) throws Exception {
     if (feed == null || feed.getSourceType() == null) {
@@ -44,6 +47,13 @@ public class IngestPipelineService {
         return new ArrayList<>();
       }
       return webIngestService.ingest(feed.getUrl(), feed.getName(), category);
+    }
+    if ("TWITTER".equals(type)) {
+      if (!twitterIngestEnabled) {
+        System.out.println("Skipping TWITTER feed ingestion (disabled by config): " + feed.getName());
+        return new ArrayList<>();
+      }
+      return twitterIngestService.ingest(feed);
     }
     return new ArrayList<>();
   }

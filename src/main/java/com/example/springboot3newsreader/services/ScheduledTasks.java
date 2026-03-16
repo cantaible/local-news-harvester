@@ -16,12 +16,12 @@ public class ScheduledTasks {
     // 0 0 * * * ? -> 每小时的第0分0秒执行
     @Scheduled(cron = "0 0 * * * ?")
     public void scheduleRefresh() {
-        System.out.println("[Scheduled] Starting hourly RSS refresh at " + LocalDateTime.now());
+        System.out.println("[Scheduled] Starting hourly feed refresh at " + LocalDateTime.now());
         try {
             newsArticleService.refreshFromRssFeeds();
-            System.out.println("[Scheduled] Hourly RSS refresh completed at " + LocalDateTime.now());
+            System.out.println("[Scheduled] Hourly feed refresh completed at " + LocalDateTime.now());
         } catch (Exception e) {
-            System.err.println("[Scheduled] Hourly RSS refresh failed: " + e.getMessage());
+            System.err.println("[Scheduled] Hourly feed refresh failed: " + e.getMessage());
         }
     }
 }

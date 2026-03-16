@@ -243,6 +243,10 @@ class _NewsSourcePageState extends State<NewsSourcePage> {
                                 value: 'web',
                                 child: Text('Web'),
                               ),
+                              DropdownMenuItem(
+                                value: 'twitter',
+                                child: Text('Twitter'),
+                              ),
                             ],
                             onChanged: (value) {
                               if (value == null) {
